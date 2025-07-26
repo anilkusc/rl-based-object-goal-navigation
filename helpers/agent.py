@@ -16,8 +16,10 @@ class Agent():
         return reward
 
     def action_selector(self,obs):
-        linear_velocity = random.uniform(-1.0, 1.0)
-        angular_velocity = random.uniform(-1.0, 1.0)
+        #linear_velocity = random.uniform(-1.0, 1.0)
+        #angular_velocity = random.uniform(-1.0, 1.0)
+        linear_velocity = 0.5
+        angular_velocity = 0.5
 
         return {
             "action": "velocity_control",

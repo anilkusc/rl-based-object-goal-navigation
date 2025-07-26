@@ -62,7 +62,7 @@ def run_episode(env, episode, max_steps=100):
     # Print episode information from config
     print_episode_info(env)
     
-    input("Press Enter to continue...")
+    #input("Press Enter to continue...")
     print(f"Initial object goal: {obs['objectgoal']}")
     
     episode_reward = 0

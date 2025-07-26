@@ -17,6 +17,7 @@ from habitat_baselines.config.default import get_config as get_baselines_config
 from helpers.print import print_episode_info, print_step_info, print_episode_summary, print_training_summary
 from helpers.cfg import init_config
 from helpers.agent import Agent
+from helpers.map import get_topdown_map
 
 def run_episode(env, episode, max_steps=100):
     """Run a single episode with specific episode"""
@@ -58,6 +59,7 @@ def run_episode(env, episode, max_steps=100):
     # Episode summary
     print_episode_summary(episode.episode_id,episode_reward,metrics,step)
     
+    get_topdown_map(env,filename=str(episode.episode_id)+"_top_down_map.png")
     return episode_reward, metrics
 
 

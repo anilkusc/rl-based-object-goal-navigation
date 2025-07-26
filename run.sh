@@ -1,4 +1,4 @@
-sudo docker run -dit -v ./data:/habitat-lab/data -v ./main.py:/habitat-lab/main.py --gpus all fairembodied/habitat-challenge:habitat_navigation_2023_base_docker
+sudo docker run -dit -v ./data:/habitat-lab/data -v ./main.py:/habitat-lab/main.py -v ./helpers:/habitat-lab/helpers --gpus all fairembodied/habitat-challenge:habitat_navigation_2023_base_docker
 # Commands to run inside container:
 # cd /habitat-lab
 # . activate habitat

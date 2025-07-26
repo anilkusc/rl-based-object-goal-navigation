@@ -18,8 +18,7 @@ from helpers.print import print_episode_info, print_step_info, print_episode_sum
 from helpers.cfg import init_config
 from helpers.agent import Agent
 from helpers.map import get_topdown_map
-from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs
-
+from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs,save_depth_observation_to_png
 def run_episode(env, episode, max_steps=100):
     """Run a single episode with specific episode"""
     # Reset environment
@@ -42,7 +41,6 @@ def run_episode(env, episode, max_steps=100):
         
         # Take action in environment
         obs = env.step(action)
-        
         # Get episode info
         done = env.episode_over
         info = env.get_metrics()
@@ -57,6 +55,7 @@ def run_episode(env, episode, max_steps=100):
         print_step_info(step,action,reward,obs,done,info)
         if step % 5 == 0:
             #save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
+            #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
         step += 1
     metrics = env.get_metrics()
     # Episode summary

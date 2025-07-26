@@ -184,3 +184,122 @@ def create_gif_from_rgb_observations(rgb_observations, output_gif_path, duration
     except Exception as e:
         print(f"Error creating GIF: {e}")
         return None
+
+
+def save_depth_observation_to_png(depth_observation, output_path, filename=None, normalize=True, colormap=cv2.COLORMAP_JET):
+    """
+    Save depth observation to PNG file.
+    
+    Args:
+        depth_observation: numpy array of shape (H, W) with depth values
+        output_path: directory path where to save the PNG file
+        filename: optional filename, if None will generate timestamp-based name
+        normalize: whether to normalize depth values to [0, 255] range (default: True)
+        colormap: OpenCV colormap to apply (default: cv2.COLORMAP_JET)
+    
+    Returns:
+        str: path to the saved PNG file
+    """
+    try:
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Generate filename if not provided
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            filename = f"depth_observation_{timestamp}.png"
+        
+        # Ensure filename has .png extension
+        if not filename.endswith('.png'):
+            filename += '.png'
+        
+        # Convert to float32 if needed
+        if depth_observation.dtype != np.float32:
+            depth_observation = depth_observation.astype(np.float32)
+        
+        # Handle NaN and infinite values
+        depth_observation = np.nan_to_num(depth_observation, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        if normalize:
+            # Normalize depth values to [0, 255] range
+            if depth_observation.max() > depth_observation.min():
+                depth_normalized = ((depth_observation - depth_observation.min()) / 
+                                  (depth_observation.max() - depth_observation.min()) * 255).astype(np.uint8)
+            else:
+                depth_normalized = np.zeros_like(depth_observation, dtype=np.uint8)
+        else:
+            # Assume depth values are already in reasonable range [0, 255]
+            depth_normalized = np.clip(depth_observation, 0, 255).astype(np.uint8)
+        
+        # Apply colormap for better visualization
+        depth_colored = cv2.applyColorMap(depth_normalized, colormap)
+        
+        # Save the image
+        full_path = os.path.join(output_path, filename)
+        cv2.imwrite(full_path, depth_colored)
+        
+        print(f"Depth observation saved to: {full_path}")
+        print(f"Depth range: {depth_observation.min():.3f} - {depth_observation.max():.3f}")
+        return full_path
+        
+    except Exception as e:
+        print(f"Error saving depth observation: {e}")
+        return None
+
+
+def save_depth_observation_to_png_grayscale(depth_observation, output_path, filename=None, normalize=True):
+    """
+    Save depth observation to PNG file as grayscale (without colormap).
+    
+    Args:
+        depth_observation: numpy array of shape (H, W) with depth values
+        output_path: directory path where to save the PNG file
+        filename: optional filename, if None will generate timestamp-based name
+        normalize: whether to normalize depth values to [0, 255] range (default: True)
+    
+    Returns:
+        str: path to the saved PNG file
+    """
+    try:
+        # Ensure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Generate filename if not provided
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            filename = f"depth_observation_grayscale_{timestamp}.png"
+        
+        # Ensure filename has .png extension
+        if not filename.endswith('.png'):
+            filename += '.png'
+        
+        # Convert to float32 if needed
+        if depth_observation.dtype != np.float32:
+            depth_observation = depth_observation.astype(np.float32)
+        
+        # Handle NaN and infinite values
+        depth_observation = np.nan_to_num(depth_observation, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        if normalize:
+            # Normalize depth values to [0, 255] range
+            if depth_observation.max() > depth_observation.min():
+                depth_normalized = ((depth_observation - depth_observation.min()) / 
+                                  (depth_observation.max() - depth_observation.min()) * 255).astype(np.uint8)
+            else:
+                depth_normalized = np.zeros_like(depth_observation, dtype=np.uint8)
+        else:
+            # Assume depth values are already in reasonable range [0, 255]
+            depth_normalized = np.clip(depth_observation, 0, 255).astype(np.uint8)
+        
+        # Save the grayscale image
+        full_path = os.path.join(output_path, filename)
+        cv2.imwrite(full_path, depth_normalized)
+        
+        print(f"Depth observation (grayscale) saved to: {full_path}")
+        print(f"Depth range: {depth_observation.min():.3f} - {depth_observation.max():.3f}")
+        return full_path
+        
+    except Exception as e:
+        print(f"Error saving depth observation: {e}")
+        return None
+

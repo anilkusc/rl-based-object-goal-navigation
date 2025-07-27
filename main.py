@@ -17,9 +17,9 @@ from habitat_baselines.config.default import get_config as get_baselines_config
 from helpers.print import print_episode_info, print_step_info, print_episode_summary, print_training_summary
 from helpers.cfg import init_config
 from helpers.agent import Agent
-from helpers.map import get_topdown_map
 from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs,save_depth_observation_to_png
-def run_episode(env, episode, max_steps=100):
+
+def run_episode(env, episode, max_steps=10):
     """Run a single episode with specific episode"""
     # Reset environment
     obs = env.reset()
@@ -56,12 +56,12 @@ def run_episode(env, episode, max_steps=100):
         if step % 5 == 0:
             #save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
             #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
+            pass
         step += 1
     metrics = env.get_metrics()
     # Episode summary
     print_episode_summary(episode.episode_id,episode_reward,metrics,step)
     #create_gif_from_pngs(output_gif_path="outputs/episode_"+str(episode.episode_id)+".gif",png_directory="outputs/episode_"+str(episode.episode_id))
-    #get_topdown_map(env,filename=str(episode.episode_id)+"_top_down_map.png")
     return episode_reward, metrics
 
 

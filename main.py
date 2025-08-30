@@ -19,7 +19,7 @@ from helpers.cfg import init_config
 from agent.agent import Agent
 from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs,save_depth_observation_to_png
 
-def run_episode(env,agent, episode, max_steps=500):
+def run_episode(env,agent, episode, max_steps=100):
     """Run a single episode with specific episode"""
     # Reset environment
     obs = env.reset()
@@ -63,13 +63,11 @@ def run_episode(env,agent, episode, max_steps=500):
         print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
 
     returns, advs, states_tensor, actions_tensor, old_log_probs_tensor = agent.calculate_advantage_returns(rewards,values,states,actions,log_probs)
-    print(f"Returns: {returns}, Advs: {advs}, States tensor: {states_tensor}, Actions tensor: {actions_tensor}, Old log probs tensor: {old_log_probs_tensor}")
-    input("Press Enter to continue...")
-    agent.actor_loss = agent.actor_loss(states_tensor,actions_tensor,old_log_probs_tensor,advs)
-    print(f"Actor loss: {agent.actor_loss}")
-    input("Press Enter to continue...")
-    agent.critic_loss = agent.critic_loss(returns, values,states_tensor)
-    print(f"Critic loss: {agent.critic_loss}")
+    print(f"Returns: {len(returns)}, Advs: {len(advs)}, States tensor: {states_tensor.shape}, Actions tensor: {actions_tensor.shape}, Old log probs tensor: {old_log_probs_tensor.shape}")
+    agent.current_actor_loss = agent.actor_loss(states_tensor,actions_tensor,old_log_probs_tensor,advs)
+    print(f"Actor loss: {agent.current_actor_loss}")
+    agent.current_critic_loss = agent.critic_loss(returns, values,states_tensor)
+    print(f"Critic loss: {agent.current_critic_loss}")
     input("Press Enter to continue...")
     agent.optimize_actor()
     agent.optimize_critic()

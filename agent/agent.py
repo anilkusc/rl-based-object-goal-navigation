@@ -13,8 +13,8 @@ class Agent():
         self.gamma = gamma
         self.lam = lam
         self.eps_clip = eps_clip
-        self.actor_loss = None
-        self.critic_loss = None
+        self.current_actor_loss = None
+        self.current_critic_loss = None
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
         self.rgb_encoder_optimizer = optim.Adam(self.rgb_encoder.parameters(), lr=lr_rgb_encoder)
@@ -75,7 +75,6 @@ class Agent():
         mu, std = self.actor(states_tensor)
         dist = D.Normal(mu, std)
         log_probs_new = dist.log_prob(actions_tensor).sum(-1)
-
         ratio = torch.exp(log_probs_new - old_log_probs_tensor)
         obj1 = ratio * advs
         obj2 = torch.clamp(ratio, 1-self.eps_clip, 1+self.eps_clip) * advs
@@ -84,12 +83,12 @@ class Agent():
 
     def optimize_actor(self):
         self.actor_optimizer.zero_grad()
-        self.actor_loss.backward()
+        self.current_actor_loss.backward(retain_graph=True)
         self.actor_optimizer.step()
 
     def optimize_critic(self):
         self.critic_optimizer.zero_grad()
-        self.critic_loss.backward()
+        self.current_critic_loss.backward()
         self.critic_optimizer.step()
 
     def optimize_rgb_encoder(self):

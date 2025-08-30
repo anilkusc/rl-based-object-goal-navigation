@@ -19,7 +19,7 @@ from helpers.cfg import init_config
 from helpers.agent import Agent
 from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs,save_depth_observation_to_png
 
-def run_episode(env, episode, max_steps=10):
+def run_episode(env, episode, max_steps=500):
     """Run a single episode with specific episode"""
     # Reset environment
     obs = env.reset()
@@ -34,27 +34,31 @@ def run_episode(env, episode, max_steps=10):
     episode_reward = 0
     done = False
     step = 0
-    agent = Agent()
+
+    total_goal_category = 6
+    agent = Agent(total_objects=total_goal_category)
+    
     while not done and step < max_steps:
         # Select action (currently random)
         action = agent.action_selector(obs)
-        
+
         # Take action in environment
-        obs = env.step(action)
+        next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action[0],"angular_velocity": action[1]}})
         # Get episode info
         done = env.episode_over
         info = env.get_metrics()
         
         # Calculate reward (you can customize this)
         reward = agent.calculate_reward(info,done,obs)
-        
+        agent.add_to_replay_buffer(obs,action,reward,next_obs,done)
+        obs = next_obs
         # Accumulate reward
         episode_reward += reward
         
         # Print step information
         print_step_info(step,action,reward,obs,done,info)
-        if step % 5 == 0:
-            #save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
+        if step % 100 == 0:
+            save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
             #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
             pass
         step += 1
@@ -62,11 +66,13 @@ def run_episode(env, episode, max_steps=10):
     # Episode summary
     print_episode_summary(episode.episode_id,episode_reward,metrics,step)
     #create_gif_from_pngs(output_gif_path="outputs/episode_"+str(episode.episode_id)+".gif",png_directory="outputs/episode_"+str(episode.episode_id))
+    agent.train()
+    input("1Press Enter to continue...")
     return episode_reward, metrics
 
 
 if __name__ == "__main__":
-    config = init_config(max_episode_steps=1000,split="val_mini")
+    config = init_config(max_episode_steps=500,split="val_mini")
     
     print("Initializing environment...")
     env = habitat.Env(config=config)

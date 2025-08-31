@@ -41,20 +41,19 @@ class Agent():
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
         dist_reward = -info['distance_to_goal']  # distance küçüldükçe reward artar
-        dist_reward *= 1.0  # ağırlık
         # 2. Success reward: hedefe ulaşıldığında büyük ödül
         success_reward = 10.0 if info['success'] > 0 else 0.0
         # 3. Step penalty: kısa yolları teşvik
-        step_penalty = -0.01 * info['num_steps']
-        # 4. Collision penalty
-        collision_penalty = -0.2 * info['collisions']['count']
+        step_penalty = -0.001 * info['num_steps']
+        # 4. Soft SPL penalty: soft SPL küçüldükçe reward azalır
+        soft_spl_reward = info['soft_spl']
         # 5. Distance to goal bonus (ortamdan gelen küçük ek sinyal)
         distance_goal_bonus = info.get('distance_to_goal_reward', 0.0)
         # 6. Done penalization (opsiyonel)
         # Eğer episode başarısız ve done = True ise ekstra ceza
         done_penalty = -1.0 if done and info['success'] == 0 else 0.0
         # Toplam reward
-        reward = dist_reward + success_reward + step_penalty + collision_penalty + distance_goal_bonus + done_penalty
+        reward = dist_reward + success_reward + step_penalty  + soft_spl_reward + distance_goal_bonus + done_penalty
         return reward
 
     def action_selector(self,obs):
@@ -266,7 +265,7 @@ class Agent():
         if self.reward_max is None or total_reward > self.reward_max:
             torch.save(total_reward, filepath+"best.pt")
             self.reward_max = total_reward
-        print(f"Model saved successfully to {filepath}")
+        #print(f"Model saved successfully to {filepath}")
     
     def load(self, filepath):
         """

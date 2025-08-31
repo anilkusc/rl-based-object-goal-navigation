@@ -27,8 +27,8 @@ if __name__ == "__main__":
         for i in range(torch.cuda.device_count()):
             print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
-    max_episode_steps = 10
-    epoch = 10
+    max_episode_steps = 10000
+    epoch = 100
     config = init_config(max_episode_steps=max_episode_steps,split="val_mini")
     
     print("Initializing environment...")
@@ -87,6 +87,10 @@ if __name__ == "__main__":
                 #    #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
                 #    pass
                 step += 1
+                if step % 1000 == 0:
+                    torch.cuda.empty_cache()
+                    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+                    log_probs, values, rewards, states, actions = [], [], [], [], []
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
             actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)

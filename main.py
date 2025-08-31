@@ -86,16 +86,24 @@ if __name__ == "__main__":
                 step += 1
                 print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
 
-            agent.optimize_models(rewards, values, states, actions, log_probs)
-            agent.save(episode_reward)
+            # Get losses from optimization and log to TensorBoard
+            actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
             metrics = env.get_metrics()
+            agent.log_to_tensorboard(episode_reward, actor_loss, critic_loss, total_loss, step, rewards, metrics)
+            
+            agent.save(episode_reward)
             # Episode summary
             print_episode_summary(episode.episode_id,episode_reward,metrics,step)
             total_rewards.append(episode_reward)
             input("Press Enter to continue...")
+        
+        # Log final training summary
+        agent.log_final_summary(total_rewards)
+        
         # Print training summary
         print_training_summary(total_rewards,env.episodes)
 
     finally:
         env.close()
+        agent.close_tensorboard()  # Close TensorBoard writer
         print("\nEnvironment closed!")

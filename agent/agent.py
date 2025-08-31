@@ -3,6 +3,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as D
 import torch
+import os
+from torch.utils.tensorboard import SummaryWriter
+
 class Agent():
     def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=1e-3,eps_clip = 0.2,lr_encoder=1e-4):
         self.goal_category = goal_category
@@ -17,6 +20,12 @@ class Agent():
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
         self.encoder_optimizer = torch.optim.Adam(list(self.rgb_encoder.parameters()) + list(self.depth_encoder.parameters()),lr=lr_encoder)
+        
+        # TensorBoard setup
+        self.log_dir = "./outputs/tensorboard_logs"
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.writer = SummaryWriter(log_dir=self.log_dir)
+        self.episode_count = 0
     
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
@@ -95,6 +104,69 @@ class Agent():
         self.actor_optimizer.step()
         self.critic_optimizer.step()
         self.encoder_optimizer.step()
+        
+        # Return loss values for TensorBoard logging
+        return al.item(), cl.item(), total_loss.item()
+
+    def log_to_tensorboard(self, episode_reward, actor_loss, critic_loss, total_loss, step_count, rewards, metrics):
+        """
+        Log training data to TensorBoard
+        
+        Args:
+            episode_reward (float): Total reward for the episode
+            actor_loss (float): Actor loss value
+            critic_loss (float): Critic loss value
+            total_loss (float): Total loss value
+            step_count (int): Number of steps in episode
+            rewards (list): List of rewards for each step
+            values (list): List of critic values for each step
+            actions (list): List of actions taken
+            metrics (dict): Environment metrics
+        """
+        # Training metrics
+        self.writer.add_scalar('Training/Episode_Reward', episode_reward, self.episode_count)
+        self.writer.add_scalar('Training/Actor_Loss', actor_loss, self.episode_count)
+        self.writer.add_scalar('Training/Critic_Loss', critic_loss, self.episode_count)
+        self.writer.add_scalar('Training/Total_Loss', total_loss, self.episode_count)
+        self.writer.add_scalar('Training/Episode_Length', step_count, self.episode_count)
+        self.writer.add_scalar('Training/Average_Step_Reward', episode_reward / max(step_count, 1), self.episode_count)
+        
+        # Environment metrics
+        self.writer.add_scalar('Metrics/Distance_to_Goal', metrics.get('distance_to_goal', 0), self.episode_count)
+        self.writer.add_scalar('Metrics/Success', metrics.get('success', 0), self.episode_count)
+        self.writer.add_scalar('Metrics/SPL', metrics.get('spl', 0), self.episode_count)
+        self.writer.add_scalar('Metrics/Soft_SPL', metrics.get('soft_spl', 0), self.episode_count)
+        self.writer.add_scalar('Metrics/Collisions', metrics.get('collisions', {}).get('count', 0), self.episode_count)
+        
+        
+        # Reward statistics
+        if rewards:
+            rewards_tensor = torch.tensor(rewards)
+            self.writer.add_scalar('Rewards/Mean', rewards_tensor.mean().item(), self.episode_count)
+            self.writer.add_scalar('Rewards/Std', rewards_tensor.std().item(), self.episode_count)
+            self.writer.add_scalar('Rewards/Min', rewards_tensor.min().item(), self.episode_count)
+            self.writer.add_scalar('Rewards/Max', rewards_tensor.max().item(), self.episode_count)
+        
+        self.episode_count += 1
+
+    def log_final_summary(self, total_rewards):
+        """
+        Log final training summary to TensorBoard
+        
+        Args:
+            total_rewards (list): List of all episode rewards
+        """
+        if total_rewards:
+            self.writer.add_scalar('Training/Final_Average_Reward', sum(total_rewards) / len(total_rewards), 0)
+            self.writer.add_scalar('Training/Best_Reward', max(total_rewards), 0)
+            self.writer.add_scalar('Training/Worst_Reward', min(total_rewards), 0)
+            self.writer.add_scalar('Training/Total_Episodes', len(total_rewards), 0)
+
+    def close_tensorboard(self):
+        """Close TensorBoard writer"""
+        self.writer.close()
+        print(f"TensorBoard logs saved to: {self.log_dir}")
+        print("To view TensorBoard, run: tensorboard --logdir=outputs/tensorboard_logs")
 
     def calculate_advantage_returns(self,rewards,values,states,actions,log_probs):
         returns, advs = self.compute_returns_advantages(rewards, values)
@@ -122,7 +194,7 @@ class Agent():
         state = torch.cat([rgb_feature, depth_feature, compass, gps, objectgoal], dim=1)
         return state
 
-    def save(self, total_reward,filepath="./outputs/"):
+    def save(self, total_reward,filepath="./outputs/checkpoints/"):
         """
         Save all model weights, optimizers, and training state to a file.
         
@@ -147,9 +219,11 @@ class Agent():
             'eps_clip': self.eps_clip,
             
         }
+        os.makedirs(filepath, exist_ok=True)
         torch.save(checkpoint, filepath+"last.pt")
         if self.reward_max is None or total_reward > self.reward_max:
             torch.save(total_reward, filepath+"best.pt")
+            self.reward_max = total_reward
         print(f"Model saved successfully to {filepath}")
     
     def load(self, filepath):

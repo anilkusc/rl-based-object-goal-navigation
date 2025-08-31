@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.distributions as D
 import torch
 import os
+import pynvml
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
@@ -146,6 +147,33 @@ class Agent():
             self.writer.add_scalar('Rewards/Std', rewards_tensor.std().item(), self.episode_count)
             self.writer.add_scalar('Rewards/Min', rewards_tensor.min().item(), self.episode_count)
             self.writer.add_scalar('Rewards/Max', rewards_tensor.max().item(), self.episode_count)
+        
+        # GPU metrics from pynvml
+        try:
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # First GPU
+            
+            # Memory info
+            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            mem_used_mb = mem_info.used / 1024**2
+            mem_total_mb = mem_info.total / 1024**2
+            mem_usage_percent = (mem_info.used / mem_info.total) * 100
+            
+            # GPU utilization
+            gpu_util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_usage_percent = gpu_util.gpu
+            
+            # Temperature
+            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            
+            self.writer.add_scalar('GPU/Memory_Used_MB', mem_used_mb, self.episode_count)
+            self.writer.add_scalar('GPU/Memory_Total_MB', mem_total_mb, self.episode_count)
+            self.writer.add_scalar('GPU/Memory_Usage_Percent', mem_usage_percent, self.episode_count)
+            self.writer.add_scalar('GPU/Utilization_Percent', gpu_usage_percent, self.episode_count)
+            self.writer.add_scalar('GPU/Temperature_Celsius', temp, self.episode_count)
+            
+        except:
+            pass  # GPU monitoring not available
         
         self.episode_count += 1
 

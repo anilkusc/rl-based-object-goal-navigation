@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.distributions as D
 import torch
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=1e-3,eps_clip = 0.2,lr_rgb_encoder=3e-4,lr_depth_encoder=3e-4):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=1e-3,eps_clip = 0.2,lr_encoder=1e-4):
         self.goal_category = goal_category
         self.actor = Actor(state_dim, action_dim)
         self.critic = Critic(state_dim)
@@ -13,12 +13,10 @@ class Agent():
         self.gamma = gamma
         self.lam = lam
         self.eps_clip = eps_clip
-        self.current_actor_loss = None
-        self.current_critic_loss = None
+        self.reward_max = None
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
-        self.rgb_encoder_optimizer = optim.Adam(self.rgb_encoder.parameters(), lr=lr_rgb_encoder)
-        self.depth_encoder_optimizer = optim.Adam(self.depth_encoder.parameters(), lr=lr_depth_encoder)
+        self.encoder_optimizer = torch.optim.Adam(list(self.rgb_encoder.parameters()) + list(self.depth_encoder.parameters()),lr=lr_encoder)
     
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
@@ -67,9 +65,10 @@ class Agent():
             next_value = v
         return returns, advs
 
-    def critic_loss(self,returns, values,states_tensor):
+    def critic_loss(self,returns, states_tensor):
         values_pred = self.critic(states_tensor).squeeze()
-        return F.mse_loss(values_pred, returns)
+        cl = F.mse_loss(values_pred, returns)
+        return cl
     
     def actor_loss(self,states_tensor,actions_tensor,old_log_probs_tensor,advs):
         mu, std = self.actor(states_tensor)
@@ -78,24 +77,24 @@ class Agent():
         ratio = torch.exp(log_probs_new - old_log_probs_tensor)
         obj1 = ratio * advs
         obj2 = torch.clamp(ratio, 1-self.eps_clip, 1+self.eps_clip) * advs
-        actor_loss = -torch.min(obj1, obj2).mean()
-        return actor_loss
+        al = -torch.min(obj1, obj2).mean()
+        return al
 
-    def optimize_actor(self):
+    def optimize_models(self,rewards,values,states,actions,log_probs):
+        returns, advs, states_tensor, actions_tensor, old_log_probs_tensor = self.calculate_advantage_returns(rewards,values,states,actions,log_probs)
+        al = self.actor_loss(states_tensor,actions_tensor,old_log_probs_tensor,advs)
+        cl = self.critic_loss(returns, states_tensor)
+        total_loss = al + cl
+
         self.actor_optimizer.zero_grad()
-        self.current_actor_loss.backward(retain_graph=True)
-        self.actor_optimizer.step()
-
-    def optimize_critic(self):
         self.critic_optimizer.zero_grad()
-        self.current_critic_loss.backward()
+        self.encoder_optimizer.zero_grad()
+
+        total_loss.backward()
+
+        self.actor_optimizer.step()
         self.critic_optimizer.step()
-
-    def optimize_rgb_encoder(self):
-        pass
-
-    def optimize_depth_encoder(self):
-        pass
+        self.encoder_optimizer.step()
 
     def calculate_advantage_returns(self,rewards,values,states,actions,log_probs):
         returns, advs = self.compute_returns_advantages(rewards, values)
@@ -123,7 +122,60 @@ class Agent():
         state = torch.cat([rgb_feature, depth_feature, compass, gps, objectgoal], dim=1)
         return state
 
-    def save(self):
-        pass
-    def load(self):
-        pass
+    def save(self, total_reward,filepath="./outputs/"):
+        """
+        Save all model weights, optimizers, and training state to a file.
+        
+        Args:
+            filepath (str): Path where to save the checkpoint
+        """
+        checkpoint = {
+            # Model states
+            'actor_state_dict': self.actor.state_dict(),
+            'critic_state_dict': self.critic.state_dict(),
+            'rgb_encoder_state_dict': self.rgb_encoder.state_dict(),
+            'depth_encoder_state_dict': self.depth_encoder.state_dict(),
+            
+            # Optimizer states
+            'actor_optimizer_state_dict': self.actor_optimizer.state_dict(),
+            'critic_optimizer_state_dict': self.critic_optimizer.state_dict(),
+            'encoder_optimizer_state_dict': self.encoder_optimizer.state_dict(),
+            
+            # Training parameters
+            'gamma': self.gamma,
+            'lam': self.lam,
+            'eps_clip': self.eps_clip,
+            
+        }
+        torch.save(checkpoint, filepath+"last.pt")
+        if self.reward_max is None or total_reward > self.reward_max:
+            torch.save(total_reward, filepath+"best.pt")
+        print(f"Model saved successfully to {filepath}")
+    
+    def load(self, filepath):
+        """
+        Load all model weights, optimizers, and training state from a file.
+        
+        Args:
+            filepath (str): Path to the checkpoint file
+        """
+        checkpoint = torch.load(filepath)
+        
+        # Load model states
+        self.actor.load_state_dict(checkpoint['actor_state_dict'])
+        self.critic.load_state_dict(checkpoint['critic_state_dict'])
+        self.rgb_encoder.load_state_dict(checkpoint['rgb_encoder_state_dict'])
+        self.depth_encoder.load_state_dict(checkpoint['depth_encoder_state_dict'])
+        
+        # Load optimizer states
+        self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer_state_dict'])
+        self.critic_optimizer.load_state_dict(checkpoint['critic_optimizer_state_dict'])
+        self.encoder_optimizer.load_state_dict(checkpoint['encoder_optimizer_state_dict'])
+        
+        # Load training parameters
+        self.gamma = checkpoint['gamma']
+        self.lam = checkpoint['lam']
+        self.eps_clip = checkpoint['eps_clip']
+        
+        
+        print(f"Model loaded successfully from {filepath}")

@@ -20,6 +20,13 @@ from agent.agent import Agent
 from helpers.visualize import save_rgb_observation_to_png,create_gif_from_pngs,save_depth_observation_to_png
 
 if __name__ == "__main__":
+    # GPU kontrolü
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU count: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+    
     max_episode_steps = 10
     epoch = 10
     config = init_config(max_episode_steps=max_episode_steps,split="val_mini")
@@ -44,7 +51,7 @@ if __name__ == "__main__":
     total = 1028
     """
     agent = Agent(goal_category=None,state_dim=1028,action_dim=2)
-    for i in range(epoch):
+    for e in range(epoch):
         for i, episode in enumerate(env.episodes):
             print(f"\nEpisode {i} (ID: {episode.episode_id}) started")
             obs = env.reset()
@@ -60,15 +67,15 @@ if __name__ == "__main__":
                 # Select action (currently random)
                 action, log_prob = agent.action_selector(obs)
                 value = agent.critic_selector(obs)
-                action_np = action.squeeze().cpu().numpy()
+                action_np = action.squeeze().detach().cpu().numpy()
                 next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
                 # Get episode info
                 done = env.episode_over
                 info = env.get_metrics()
                 reward = agent.calculate_reward(info,done)
                 states.append(agent.process_state(obs))
-                actions.append(torch.tensor(action))
-                log_probs.append(log_prob)
+                actions.append(action)  # action zaten GPU'da
+                log_probs.append(log_prob)  # log_prob zaten GPU'da
                 values.append(value.item())
                 rewards.append(reward)
                 obs = next_obs
@@ -94,7 +101,7 @@ if __name__ == "__main__":
         #agent.log_final_summary(total_rewards)
         # Print training summary
         #print_training_summary(total_rewards,env.episodes)
-        print(f"=======================================================Epoch {i} finished=========================================================================")
+        print(f"=======================================================Epoch {e} finished=========================================================================")
 
 
     env.close()

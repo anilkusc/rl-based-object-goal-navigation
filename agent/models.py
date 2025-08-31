@@ -7,13 +7,36 @@ import torch.distributions as distributions
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.fc = nn.Linear(state_dim, 64)
+        self.fc1 = nn.Linear(state_dim, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
         self.mu = nn.Linear(64, action_dim)
-        self.log_std = nn.Parameter(torch.zeros(action_dim))  # log std learnable
+        self.log_std = nn.Parameter(torch.zeros(action_dim))
+        
+        # Layer normalization instead of batch normalization
+        self.ln1 = nn.LayerNorm(256)
+        self.ln2 = nn.LayerNorm(128)
+        self.ln3 = nn.LayerNorm(64)
+        
+        # Dropout ekle
+        self.dropout = nn.Dropout(0.1)
+        
+        # Weight initialization
+        self._init_weights()
+
+    def _init_weights(self):
+        for module in [self.fc1, self.fc2, self.fc3, self.mu]:
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
-        x = torch.tanh(self.fc(x))
-        mu = torch.tanh(self.mu(x))  # tanh for [-1,1] range
+        x = F.leaky_relu(self.ln1(self.fc1(x)))
+        x = self.dropout(x)
+        x = F.leaky_relu(self.ln2(self.fc2(x)))
+        x = self.dropout(x)
+        x = F.leaky_relu(self.ln3(self.fc3(x)))
+        mu = torch.tanh(self.mu(x))
         std = torch.exp(self.log_std)
         return mu, std
 
@@ -29,11 +52,38 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim):
         super().__init__()
-        self.fc = nn.Linear(state_dim, 64)
+        self.fc1 = nn.Linear(state_dim, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, 64)
         self.out = nn.Linear(64, 1)
+        
+        # Layer normalization instead of batch normalization
+        self.ln1 = nn.LayerNorm(512)
+        self.ln2 = nn.LayerNorm(256)
+        self.ln3 = nn.LayerNorm(128)
+        self.ln4 = nn.LayerNorm(64)
+        
+        # Dropout
+        self.dropout = nn.Dropout(0.15)
+        
+        # Weight initialization
+        self._init_weights()
+
+    def _init_weights(self):
+        for module in [self.fc1, self.fc2, self.fc3, self.fc4, self.out]:
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
-        x = torch.tanh(self.fc(x))
+        x = F.leaky_relu(self.ln1(self.fc1(x)))
+        x = self.dropout(x)
+        x = F.leaky_relu(self.ln2(self.fc2(x)))
+        x = self.dropout(x)
+        x = F.leaky_relu(self.ln3(self.fc3(x)))
+        x = self.dropout(x)
+        x = F.leaky_relu(self.ln4(self.fc4(x)))
         return self.out(x)
 
 class Encoder(nn.Module):

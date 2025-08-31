@@ -8,12 +8,22 @@ import pynvml
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=1e-3,eps_clip = 0.2,lr_encoder=1e-4):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=5e-4,eps_clip = 0.2,lr_encoder=1e-4):
         self.goal_category = goal_category
-        self.actor = Actor(state_dim, action_dim)
-        self.critic = Critic(state_dim)
-        self.rgb_encoder = Encoder()
-        self.depth_encoder = Encoder()
+        
+        # GPU kontrolü ve cihaz seçimi
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {self.device}")
+        if torch.cuda.is_available():
+            print(f"GPU count: {torch.cuda.device_count()}")
+            print(f"Current GPU: {torch.cuda.get_device_name()}")
+        
+        # Modelleri GPU'ya taşı
+        self.actor = Actor(state_dim, action_dim).to(self.device)
+        self.critic = Critic(state_dim).to(self.device)
+        self.rgb_encoder = Encoder().to(self.device)
+        self.depth_encoder = Encoder().to(self.device)
+        
         self.gamma = gamma
         self.lam = lam
         self.eps_clip = eps_clip
@@ -142,7 +152,7 @@ class Agent():
         
         # Reward statistics
         if rewards:
-            rewards_tensor = torch.tensor(rewards)
+            rewards_tensor = torch.tensor(rewards).to(self.device)
             self.writer.add_scalar('Rewards/Mean', rewards_tensor.mean().item(), self.episode_count)
             self.writer.add_scalar('Rewards/Std', rewards_tensor.std().item(), self.episode_count)
             self.writer.add_scalar('Rewards/Min', rewards_tensor.min().item(), self.episode_count)
@@ -198,8 +208,8 @@ class Agent():
 
     def calculate_advantage_returns(self,rewards,values,states,actions,log_probs):
         returns, advs = self.compute_returns_advantages(rewards, values)
-        returns = torch.tensor(returns, dtype=torch.float32)
-        advs = torch.tensor(advs, dtype=torch.float32)
+        returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
+        advs = torch.tensor(advs, dtype=torch.float32).to(self.device)
 
         states_tensor = torch.stack(states)
         actions_tensor = torch.stack(actions)
@@ -208,18 +218,21 @@ class Agent():
 
     def process_state(self,obs):
         gray_frame = obs["rgb"].mean(axis=-1, keepdims=True)
-        rgb_frame = torch.from_numpy(gray_frame).float()  # (H,W,C)
-        depth_frame = torch.from_numpy(obs["depth"]).float()  # (H,W,1)
+        rgb_frame = torch.from_numpy(gray_frame).float().to(self.device)  # (H,W,C)
+        depth_frame = torch.from_numpy(obs["depth"]).float().to(self.device)  # (H,W,1)
 
         rgb_frame = rgb_frame.unsqueeze(0)   # (1,H,W,C)
         depth_frame = depth_frame.unsqueeze(0)
         rgb_feature = self.rgb_encoder(rgb_frame)
         depth_feature = self.depth_encoder(depth_frame)
-        compass = torch.from_numpy(obs["compass"]).float().unsqueeze(0)     # (1,3)
-        gps = torch.from_numpy(obs["gps"]).float().unsqueeze(0)             # (1,2)
-        objectgoal = torch.from_numpy(obs["objectgoal"]).float().unsqueeze(0) # (1,num_object_classes)
+        compass = torch.from_numpy(obs["compass"]).float().unsqueeze(0).to(self.device)     # (1,3)
+        gps = torch.from_numpy(obs["gps"]).float().unsqueeze(0).to(self.device)             # (1,2)
+        objectgoal = torch.from_numpy(obs["objectgoal"]).float().unsqueeze(0).to(self.device) # (1,num_object_classes)
 
         state = torch.cat([rgb_feature, depth_feature, compass, gps, objectgoal], dim=1)
+        # State boyutunu 1028'e kes (eğer farklıysa)
+        if state.shape[1] != 1028:
+            state = state[:, :1028]
         return state
 
     def save(self, total_reward,filepath="./outputs/checkpoints/"):
@@ -245,6 +258,7 @@ class Agent():
             'gamma': self.gamma,
             'lam': self.lam,
             'eps_clip': self.eps_clip,
+            'device': str(self.device),
             
         }
         os.makedirs(filepath, exist_ok=True)
@@ -261,7 +275,7 @@ class Agent():
         Args:
             filepath (str): Path to the checkpoint file
         """
-        checkpoint = torch.load(filepath)
+        checkpoint = torch.load(filepath, map_location=self.device)
         
         # Load model states
         self.actor.load_state_dict(checkpoint['actor_state_dict'])
@@ -278,6 +292,5 @@ class Agent():
         self.gamma = checkpoint['gamma']
         self.lam = checkpoint['lam']
         self.eps_clip = checkpoint['eps_clip']
-        
         
         print(f"Model loaded successfully from {filepath}")

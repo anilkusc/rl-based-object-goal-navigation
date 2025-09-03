@@ -5,11 +5,18 @@ import torch.distributions as D
 import torch
 import os
 import pynvml
+import random
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=5e-4,eps_clip = 0.2,lr_encoder=1e-4):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=5e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=1.0,epsilon_min=0.01,epsilon_decay=0.995):
         self.goal_category = goal_category
+        
+        # Exploration parameters
+        self.epsilon = epsilon  # Initial exploration rate
+        self.epsilon_min = epsilon_min  # Minimum exploration rate
+        self.epsilon_decay = epsilon_decay  # Exploration decay rate
+        self.exploration_noise_std = 0.3  # Standard deviation for exploration noise
         
         # GPU kontrolü ve cihaz seçimi
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,6 +45,11 @@ class Agent():
         self.writer = SummaryWriter(log_dir=self.log_dir)
         self.episode_count = 0
     
+    def decay_epsilon(self):
+        """Decay exploration rate over time"""
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
         dist_reward = -info['distance_to_goal']  # distance küçüldükçe reward artar
@@ -61,13 +73,25 @@ class Agent():
     def action_selector(self,obs):
         #linear_velocity = random.uniform(-1.0, 1.0)
         #angular_velocity = random.uniform(-1.0, 1.0)
-        #print(f"Goal category: {self.goal_category}")
-        #print(f"Obs: {obs}")
-        #linear_velocity = 0.5
-        #angular_velocity = 0.5
-        #return linear_velocity, angular_velocity
+        # Always get state and policy action first
         state = self.process_state(obs)
-        action, log_prob = self.actor.act(state)
+        policy_action, log_prob = self.actor.act(state)
+        
+        # Epsilon-greedy exploration: add separate noise for linear and angular velocities
+        if random.random() < self.epsilon:
+            # Add separate Gaussian noise for each action component
+            linear_noise = torch.randn(1) * self.exploration_noise_std
+            angular_noise = torch.randn(1) * self.exploration_noise_std
+            
+            # Add noise to policy action components separately
+            action = policy_action + torch.tensor([linear_noise, angular_noise], dtype=torch.float32).to(self.device)
+            
+            # Clamp to valid action range [-1, 1]
+            action = torch.clamp(action, -1.0, 1.0)
+        else:
+            # Use policy action directly (no noise)
+            action = policy_action
+        
         return action, log_prob
 
     def critic_selector(self,obs):

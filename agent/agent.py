@@ -52,8 +52,10 @@ class Agent():
         # 6. Done penalization (opsiyonel)
         # Eğer episode başarısız ve done = True ise ekstra ceza
         done_penalty = -1.0 if done and info['success'] == 0 else 0.0
+
+        collision_penalty = -0.01 if info['collisions']['is_collision'] else 0.0
         # Toplam reward
-        reward = dist_reward + success_reward + step_penalty  + soft_spl_reward + distance_goal_bonus + done_penalty
+        reward = dist_reward + success_reward + step_penalty  + soft_spl_reward + distance_goal_bonus + done_penalty + collision_penalty
         return reward
 
     def action_selector(self,obs):

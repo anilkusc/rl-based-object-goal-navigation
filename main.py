@@ -27,7 +27,7 @@ if __name__ == "__main__":
         for i in range(torch.cuda.device_count()):
             print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
-    max_episode_steps = 10000
+    max_episode_steps = 150
     epoch = 100
     config = init_config(max_episode_steps=max_episode_steps,split="val_mini")
     
@@ -53,7 +53,8 @@ if __name__ == "__main__":
     agent = Agent(goal_category=None,state_dim=1028,action_dim=2)
     for e in range(epoch):
         for i, episode in enumerate(env.episodes):
-            print(f"\nEpisode {i} (ID: {episode.episode_id}) started")
+            if not (episode.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and episode.episode_id == "8"):
+                continue
             obs = env.reset()
             log_probs, values, rewards, states, actions = [], [], [], [], []
             print(f"\nStarting Episode {episode.episode_id}")
@@ -82,15 +83,15 @@ if __name__ == "__main__":
                 episode_reward += reward
                 # Print step information
                 #print_step_info(step,action,reward,obs,done,info)
-                #if step % 100 == 0:
+                #if step % 10 == 0:
                 #    save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
                 #    #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
                 #    pass
                 step += 1
-                if step % 1000 == 0:
-                    torch.cuda.empty_cache()
-                    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
-                    log_probs, values, rewards, states, actions = [], [], [], [], []
+                #if step % 1000 == 0:
+                #    torch.cuda.empty_cache()
+                #    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+                #    log_probs, values, rewards, states, actions = [], [], [], [], []
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
             actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)

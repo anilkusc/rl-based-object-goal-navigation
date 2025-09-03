@@ -46,7 +46,7 @@ def save_rgb_observation_to_png(rgb_observation, output_path, filename=None):
         full_path = os.path.join(output_path, filename)
         cv2.imwrite(full_path, rgb_observation)
         
-        print(f"RGB observation saved to: {full_path}")
+        #print(f"RGB observation saved to: {full_path}")
         return full_path
         
     except Exception as e:

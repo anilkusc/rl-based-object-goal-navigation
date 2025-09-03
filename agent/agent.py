@@ -165,6 +165,7 @@ class Agent():
         self.writer.add_scalar('Training/Critic_Loss', critic_loss, self.episode_count)
         self.writer.add_scalar('Training/Total_Loss', total_loss, self.episode_count)
         self.writer.add_scalar('Training/Episode_Length', step_count, self.episode_count)
+        self.writer.add_scalar('Training/Epsilon', self.epsilon, self.episode_count)
         self.writer.add_scalar('Training/Average_Step_Reward', episode_reward / max(step_count, 1), self.episode_count)
         
         # Environment metrics

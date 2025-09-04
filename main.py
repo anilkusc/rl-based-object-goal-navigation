@@ -98,6 +98,8 @@ if __name__ == "__main__":
             metrics = env.get_metrics()
             agent.log_to_tensorboard(episode_reward, actor_loss, critic_loss, total_loss, step, rewards, metrics)
             agent.save(episode_reward)
+            # Decay epsilon after each episode
+            agent.decay_epsilon()
             print(f"Episode {episode.episode_id} finished with total reward {episode_reward}")
             # Episode summary
             #print_episode_summary(episode.episode_id,episode_reward,metrics,step)

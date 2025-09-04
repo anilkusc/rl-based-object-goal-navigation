@@ -1,4 +1,4 @@
-from .models import Actor, Critic, Encoder
+from .models import Actor, Critic, ResNetEncoder
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as D
@@ -28,8 +28,8 @@ class Agent():
         # Modelleri GPU'ya taşı
         self.actor = Actor(state_dim, action_dim).to(self.device)
         self.critic = Critic(state_dim).to(self.device)
-        self.rgb_encoder = Encoder().to(self.device)
-        self.depth_encoder = Encoder().to(self.device)
+        self.rgb_encoder = ResNetEncoder(output_dim=512, pretrained=True).to(self.device)
+        self.depth_encoder = ResNetEncoder(output_dim=512, pretrained=True).to(self.device)
         
         self.gamma = gamma
         self.lam = lam
@@ -243,12 +243,14 @@ class Agent():
         return returns, advs, states_tensor, actions_tensor, old_log_probs_tensor
 
     def process_state(self,obs):
-        gray_frame = obs["rgb"].mean(axis=-1, keepdims=True)
-        rgb_frame = torch.from_numpy(gray_frame).float().to(self.device)  # (H,W,C)
+        # RGB frame - ResNet expects 3 channels, so we keep the original RGB
+        rgb_frame = torch.from_numpy(obs["rgb"]).float().to(self.device)  # (H,W,3)
+        # Depth frame - convert to 3 channels for ResNet compatibility
         depth_frame = torch.from_numpy(obs["depth"]).float().to(self.device)  # (H,W,1)
+        depth_frame = depth_frame.repeat(1, 1, 3)  # (H,W,3) - repeat depth channel 3 times
 
-        rgb_frame = rgb_frame.unsqueeze(0)   # (1,H,W,C)
-        depth_frame = depth_frame.unsqueeze(0)
+        rgb_frame = rgb_frame.unsqueeze(0)   # (1,H,W,3)
+        depth_frame = depth_frame.unsqueeze(0)  # (1,H,W,3)
         rgb_feature = self.rgb_encoder(rgb_frame)
         depth_feature = self.depth_encoder(depth_frame)
         compass = torch.from_numpy(obs["compass"]).float().unsqueeze(0).to(self.device)     # (1,3)

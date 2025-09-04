@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as distributions
+import torchvision.models as models
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -111,4 +112,27 @@ class Encoder(nn.Module):
         x = self.cnn(x)
         x = F.relu(self.fc(x))
         return x  # feature vektörü
-        
+
+
+class ResNetEncoder(nn.Module):
+    def __init__(self, output_dim=512, pretrained=True):
+        super().__init__()
+        # Pretrained ResNet18 al (ImageNet üzerinde eğitilmiş)
+        resnet = models.resnet18(pretrained=pretrained)
+
+        # FC katmanını at → sadece convolutional backbone kalsın
+        modules = list(resnet.children())[:-1]  # son FC katmanını çıkar
+        self.backbone = nn.Sequential(*modules)
+
+        # Çıkış boyutu resnet18 için 512, bunu istediğin latent boyuta çevirebilirsin
+        self.fc = nn.Linear(512, output_dim)
+
+    def forward(self, x):
+        # x: (B,H,W,C)
+        x = x.permute(0, 3, 1, 2)  # (B,C,H,W)
+        x = F.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False)
+
+        x = self.backbone(x)  # (B,512,1,1)
+        x = torch.flatten(x, 1)  # (B,512)
+        x = self.fc(x)           # (B,output_dim)
+        return x

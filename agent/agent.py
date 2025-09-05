@@ -29,7 +29,7 @@ class Agent():
         self.actor = Actor(state_dim, action_dim).to(self.device)
         self.critic = Critic(state_dim).to(self.device)
         self.rgb_encoder = ResNetEncoder(output_dim=512, pretrained=True).to(self.device)
-        self.depth_encoder = ResNetEncoder(output_dim=512, pretrained=True).to(self.device)
+        #self.depth_encoder = ResNetEncoder(output_dim=512, pretrained=True).to(self.device)
         
         self.gamma = gamma
         self.lam = lam
@@ -37,7 +37,7 @@ class Agent():
         self.reward_max = None
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
-        self.encoder_optimizer = torch.optim.Adam(list(self.rgb_encoder.parameters()) + list(self.depth_encoder.parameters()),lr=lr_encoder)
+        #self.encoder_optimizer = torch.optim.Adam(list(self.rgb_encoder.parameters()) + list(self.depth_encoder.parameters()),lr=lr_encoder)
         
         # TensorBoard setup
         self.log_dir = "./outputs/tensorboard_logs"
@@ -54,20 +54,15 @@ class Agent():
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
         dist_reward = -info['distance_to_goal']  # distance küçüldükçe reward artar
         # 2. Success reward: hedefe ulaşıldığında büyük ödül
-        success_reward = 10.0 if info['success'] > 0 else 0.0
+        success_reward = 100.0 if info['success'] > 0 else 0.0
         # 3. Step penalty: kısa yolları teşvik
         step_penalty = -0.001 * info['num_steps']
         # 4. Soft SPL penalty: soft SPL küçüldükçe reward azalır
-        soft_spl_reward = info['soft_spl']
-        # 5. Distance to goal bonus (ortamdan gelen küçük ek sinyal)
-        distance_goal_bonus = info.get('distance_to_goal_reward', 0.0)
+        #soft_spl_reward = info['soft_spl']
         # 6. Done penalization (opsiyonel)
         # Eğer episode başarısız ve done = True ise ekstra ceza
-        done_penalty = -1.0 if done and info['success'] == 0 else 0.0
-
-        collision_penalty = -0.01 if info['collisions']['is_collision'] else 0.0
-        # Toplam reward
-        reward = dist_reward + success_reward + step_penalty  + soft_spl_reward + distance_goal_bonus + done_penalty + collision_penalty
+        done_penalty = -20.0 if done and info['success'] == 0 else 0.0
+        reward = dist_reward + success_reward + step_penalty  + done_penalty
         return reward
 
     def action_selector(self,obs):
@@ -133,13 +128,13 @@ class Agent():
 
         self.actor_optimizer.zero_grad()
         self.critic_optimizer.zero_grad()
-        self.encoder_optimizer.zero_grad()
+        #self.encoder_optimizer.zero_grad()
 
         total_loss.backward()
 
         self.actor_optimizer.step()
         self.critic_optimizer.step()
-        self.encoder_optimizer.step()
+        #self.encoder_optimizer.step()
         
         # Return loss values for TensorBoard logging
         return al.item(), cl.item(), total_loss.item()
@@ -246,21 +241,18 @@ class Agent():
         # RGB frame - ResNet expects 3 channels, so we keep the original RGB
         rgb_frame = torch.from_numpy(obs["rgb"]).float().to(self.device)  # (H,W,3)
         # Depth frame - convert to 3 channels for ResNet compatibility
-        depth_frame = torch.from_numpy(obs["depth"]).float().to(self.device)  # (H,W,1)
-        depth_frame = depth_frame.repeat(1, 1, 3)  # (H,W,3) - repeat depth channel 3 times
+        #depth_frame = torch.from_numpy(obs["depth"]).float().to(self.device)  # (H,W,1)
+        #depth_frame = depth_frame.repeat(1, 1, 3)  # (H,W,3) - repeat depth channel 3 times
 
         rgb_frame = rgb_frame.unsqueeze(0)   # (1,H,W,3)
-        depth_frame = depth_frame.unsqueeze(0)  # (1,H,W,3)
+        #depth_frame = depth_frame.unsqueeze(0)  # (1,H,W,3)
         rgb_feature = self.rgb_encoder(rgb_frame)
-        depth_feature = self.depth_encoder(depth_frame)
+        #depth_feature = self.depth_encoder(depth_frame)
         compass = torch.from_numpy(obs["compass"]).float().unsqueeze(0).to(self.device)     # (1,3)
         gps = torch.from_numpy(obs["gps"]).float().unsqueeze(0).to(self.device)             # (1,2)
         objectgoal = torch.from_numpy(obs["objectgoal"]).float().unsqueeze(0).to(self.device) # (1,num_object_classes)
 
-        state = torch.cat([rgb_feature, depth_feature, compass, gps, objectgoal], dim=1)
-        # State boyutunu 1028'e kes (eğer farklıysa)
-        if state.shape[1] != 1028:
-            state = state[:, :1028]
+        state = torch.cat([rgb_feature, compass, gps, objectgoal], dim=1)
         return state
 
     def save(self, total_reward,filepath="./outputs/checkpoints/"):
@@ -275,12 +267,12 @@ class Agent():
             'actor_state_dict': self.actor.state_dict(),
             'critic_state_dict': self.critic.state_dict(),
             'rgb_encoder_state_dict': self.rgb_encoder.state_dict(),
-            'depth_encoder_state_dict': self.depth_encoder.state_dict(),
+            #'depth_encoder_state_dict': self.depth_encoder.state_dict(),
             
             # Optimizer states
             'actor_optimizer_state_dict': self.actor_optimizer.state_dict(),
             'critic_optimizer_state_dict': self.critic_optimizer.state_dict(),
-            'encoder_optimizer_state_dict': self.encoder_optimizer.state_dict(),
+            #'encoder_optimizer_state_dict': self.encoder_optimizer.state_dict(),
             
             # Training parameters
             'gamma': self.gamma,
@@ -309,12 +301,12 @@ class Agent():
         self.actor.load_state_dict(checkpoint['actor_state_dict'])
         self.critic.load_state_dict(checkpoint['critic_state_dict'])
         self.rgb_encoder.load_state_dict(checkpoint['rgb_encoder_state_dict'])
-        self.depth_encoder.load_state_dict(checkpoint['depth_encoder_state_dict'])
+        #self.depth_encoder.load_state_dict(checkpoint['depth_encoder_state_dict'])
         
         # Load optimizer states
         self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer_state_dict'])
         self.critic_optimizer.load_state_dict(checkpoint['critic_optimizer_state_dict'])
-        self.encoder_optimizer.load_state_dict(checkpoint['encoder_optimizer_state_dict'])
+        #self.encoder_optimizer.load_state_dict(checkpoint['encoder_optimizer_state_dict'])
         
         # Load training parameters
         self.gamma = checkpoint['gamma']

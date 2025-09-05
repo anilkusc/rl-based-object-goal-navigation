@@ -27,7 +27,7 @@ if __name__ == "__main__":
         for i in range(torch.cuda.device_count()):
             print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
-    max_episode_steps = 150
+    max_episode_steps = 3
     epoch = 100
     config = init_config(max_episode_steps=max_episode_steps,split="val_mini")
     
@@ -50,12 +50,13 @@ if __name__ == "__main__":
     objectgoal: 1
     total = 1028
     """
-    agent = Agent(goal_category=None,state_dim=1028,action_dim=2)
+    agent = Agent(goal_category=None,state_dim=516,action_dim=2)
     for e in range(epoch):
         for i, episode in enumerate(env.episodes):
-            if not (episode.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and episode.episode_id == "8"):
-                continue
             obs = env.reset()
+            ep = env.current_episode
+            if not (ep.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and ep.episode_id == "6"):
+                continue
             log_probs, values, rewards, states, actions = [], [], [], [], []
             print(f"\nStarting Episode {episode.episode_id}")
             # Print episode information from config
@@ -70,9 +71,10 @@ if __name__ == "__main__":
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
                 next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
-                # Get episode info
-                done = env.episode_over
                 info = env.get_metrics()
+                info["success"] = 1 if info["distance_to_goal"] < 0.2 else 0
+                done = True if info["distance_to_goal"] < 0.2 else False
+
                 reward = agent.calculate_reward(info,done)
                 states.append(agent.process_state(obs))
                 actions.append(action)  # action zaten GPU'da
@@ -83,11 +85,12 @@ if __name__ == "__main__":
                 episode_reward += reward
                 # Print step information
                 #print_step_info(step,action,reward,obs,done,info)
-                if step % 10 == 0:
-                    save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
+                #if step % 10 == 0:
+                #    save_rgb_observation_to_png(obs["rgb"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_rgb.png")
                     #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
-                    pass
+                #    pass
                 step += 1
+                input("Press Enter to continue...")
                 #if step % 1000 == 0:
                 #    torch.cuda.empty_cache()
                 #    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)

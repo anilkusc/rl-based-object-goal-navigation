@@ -9,7 +9,7 @@ import random
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=3e-4,lr_critic=5e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=1.0,epsilon_min=0.01,epsilon_decay=0.995):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=1e-4,lr_critic=3e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=1.0,epsilon_min=0.01,epsilon_decay=0.995):
         self.goal_category = goal_category
         
         # Exploration parameters
@@ -66,27 +66,25 @@ class Agent():
         return reward
 
     def action_selector(self,obs):
-        #linear_velocity = random.uniform(-1.0, 1.0)
-        #angular_velocity = random.uniform(-1.0, 1.0)
-        # Always get state and policy action first
         state = self.process_state(obs)
-        policy_action, log_prob = self.actor.act(state)
-        
-        # Epsilon-greedy exploration: add separate noise for linear and angular velocities
+        policy_action, policy_log_prob = self.actor.act(state)
+
         if random.random() < self.epsilon:
-            # Add separate Gaussian noise for each action component
+            # Noise ekle
             linear_noise = torch.randn(1) * self.exploration_noise_std
             angular_noise = torch.randn(1) * self.exploration_noise_std
-            
-            # Add noise to policy action components separately
-            action = policy_action + torch.tensor([linear_noise, angular_noise], dtype=torch.float32).to(self.device)
-            
-            # Clamp to valid action range [-1, 1]
+            noise = torch.tensor([linear_noise, angular_noise], dtype=torch.float32).to(self.device)
+            action = policy_action + noise
             action = torch.clamp(action, -1.0, 1.0)
+
+            # Noisy action için yeni log prob hesapla
+            mu, std = self.actor.forward(state)
+            dist = D.Normal(mu, std)
+            log_prob = dist.log_prob(action).sum(-1)
         else:
-            # Use policy action directly (no noise)
             action = policy_action
-        
+            log_prob = policy_log_prob
+
         return action, log_prob
 
     def critic_selector(self,obs):
@@ -103,6 +101,15 @@ class Agent():
             advs.insert(0, gae)
             returns.insert(0, gae + v)
             next_value = v
+
+        # Advantage normalization
+        if len(advs) > 1:
+            advs_tensor = torch.tensor(advs, dtype=torch.float32)
+            advs_mean = advs_tensor.mean()
+            advs_std = advs_tensor.std()
+            if advs_std > 1e-8:  # Avoid division by zero
+                advs = [(adv - advs_mean) / advs_std for adv in advs]
+
         return returns, advs
 
     def critic_loss(self,returns, states_tensor):
@@ -122,22 +129,26 @@ class Agent():
 
     def optimize_models(self,rewards,values,states,actions,log_probs):
         returns, advs, states_tensor, actions_tensor, old_log_probs_tensor = self.calculate_advantage_returns(rewards,values,states,actions,log_probs)
+
+        # Actor loss hesapla
         al = self.actor_loss(states_tensor,actions_tensor,old_log_probs_tensor,advs)
+
+        # Critic loss hesapla
         cl = self.critic_loss(returns, states_tensor)
-        total_loss = al + cl
 
+        # Actor'ı ayrı optimize et
         self.actor_optimizer.zero_grad()
-        self.critic_optimizer.zero_grad()
-        #self.encoder_optimizer.zero_grad()
-
-        total_loss.backward()
-
+        al.backward(retain_graph=True)  # retain_graph=True çünkü aynı tensor'ları kullanıyoruz
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)  # Gradient clipping
         self.actor_optimizer.step()
+
+        # Critic'i ayrı optimize et
+        self.critic_optimizer.zero_grad()
+        cl.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)  # Gradient clipping
         self.critic_optimizer.step()
-        #self.encoder_optimizer.step()
-        
-        # Return loss values for TensorBoard logging
-        return al.item(), cl.item(), total_loss.item()
+
+        return al.item(), cl.item(), (al + cl).item()
 
     def log_to_tensorboard(self, episode_reward, actor_loss, critic_loss, total_loss, step_count, rewards, metrics):
         """

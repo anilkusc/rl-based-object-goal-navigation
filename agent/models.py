@@ -46,7 +46,10 @@ class Actor(nn.Module):
         dist = distributions.Normal(mu, std)
         action = dist.sample()
         action_clipped = torch.clamp(action, -1.0, 1.0)
-        log_prob = dist.log_prob(action).sum(-1)
+        
+        # Clipped action için log prob hesapla
+        log_prob = dist.log_prob(action_clipped).sum(-1)
+        
         return action_clipped.detach(), log_prob.detach()
 
 # === Critic (Value) Network ===

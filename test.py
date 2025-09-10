@@ -67,8 +67,11 @@ if __name__ == "__main__":
                 # Select action (currently random)
                 action, log_prob = agent.action_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
-                print(f"Action: {action_np}")
-                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
+                # Scale the actions to reasonable velocities
+                linear_vel = action_np[0] * 0.5  # -0.5 to 0.5 m/s (was -1 to 1)
+                angular_vel = action_np[1] * 1.0  # -1.0 to 1.0 rad/s (was -1 to 1)
+                print(f"Action: {action_np}, Scaled: linear={linear_vel:.3f}, angular={angular_vel:.3f}")
+                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": linear_vel,"angular_velocity": angular_vel}})
                 # Get episode info
                 done = env.episode_over
                 info = env.get_metrics()

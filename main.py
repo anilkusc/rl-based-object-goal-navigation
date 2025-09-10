@@ -55,7 +55,7 @@ if __name__ == "__main__":
         for i, episode in enumerate(env.episodes):
             obs = env.reset()
             ep = env.current_episode
-            if not (ep.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and ep.episode_id == "6"):
+            if not (ep.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and ep.episode_id == "2"):
                 continue
             log_probs, values, rewards, states, actions = [], [], [], [], []
             print(f"\nStarting Episode {episode.episode_id}")
@@ -93,14 +93,16 @@ if __name__ == "__main__":
                     #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
                 #    pass
                 step += 1
-                input("Press Enter to continue...")
-                #if step % 1000 == 0:
-                #    torch.cuda.empty_cache()
-                #    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
-                #    log_probs, values, rewards, states, actions = [], [], [], [], []
+                if step % 500 == 0:
+                    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+                    log_probs, values, rewards, states, actions = [], [], [], [], []
+                    torch.cuda.empty_cache()
+                    print(info)
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
-            actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+            if len(values) > 0:
+                actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+            
             metrics = env.get_metrics()
             agent.log_to_tensorboard(episode_reward, actor_loss, critic_loss, total_loss, step, rewards, metrics)
             agent.save(episode_reward)

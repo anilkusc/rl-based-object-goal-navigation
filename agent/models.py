@@ -75,10 +75,13 @@ class Critic(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        for module in [self.fc1, self.fc2, self.fc3, self.fc4, self.out]:
+        for module in [self.fc1, self.fc2, self.fc3, self.fc4]:
             if isinstance(module, nn.Linear):
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.constant_(module.bias, 0)
+        # Output layer için farklı initialization
+        nn.init.xavier_uniform_(self.out.weight, gain=0.1)  # Küçük gain
+        nn.init.constant_(self.out.bias, 0)
 
     def forward(self, x):
         x = F.leaky_relu(self.ln1(self.fc1(x)))
@@ -88,6 +91,7 @@ class Critic(nn.Module):
         x = F.leaky_relu(self.ln3(self.fc3(x)))
         x = self.dropout(x)
         x = F.leaky_relu(self.ln4(self.fc4(x)))
+        # Output layer'da aktivasyon yok - negatif değerlere izin ver
         return self.out(x)
 
 class Encoder(nn.Module):

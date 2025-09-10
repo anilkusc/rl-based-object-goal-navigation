@@ -9,7 +9,7 @@ import random
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=1e-4,lr_critic=3e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=1.0,epsilon_min=0.01,epsilon_decay=0.995):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=1e-4,lr_critic=1e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=1.0,epsilon_min=0.01,epsilon_decay=0.995):
         self.goal_category = goal_category
         
         # Exploration parameters
@@ -52,17 +52,29 @@ class Agent():
 
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
-        dist_reward = -info['distance_to_goal']  # distance küçüldükçe reward artar
-        # 2. Success reward: hedefe ulaşıldığında büyük ödül
-        success_reward = 100.0 if info['success'] > 0 else 0.0
-        # 3. Step penalty: kısa yolları teşvik
-        step_penalty = -0.001 * info['num_steps']
-        # 4. Soft SPL penalty: soft SPL küçüldükçe reward azalır
-        #soft_spl_reward = info['soft_spl']
-        # 6. Done penalization (opsiyonel)
-        # Eğer episode başarısız ve done = True ise ekstra ceza
-        done_penalty = -20.0 if done and info['success'] == 0 else 0.0
-        reward = dist_reward + success_reward + step_penalty  + done_penalty
+        
+        # Normalize edilmiş reward hesaplama
+        # 1. Distance reward: -1 ile 0 arasında normalize et
+        max_distance = 10.0  # Maksimum beklenen mesafe
+        dist_reward = -info['distance_to_goal'] / max_distance  # -1 ile 0 arasında
+        
+        # 2. Success reward: normalize et (çok büyük değer yerine)
+        success_reward = 10.0 if info['success'] > 0 else 0.0  # 100 yerine 10
+        
+        # 3. Step penalty: normalize et
+        step_penalty = -0.01 * info['num_steps']  # Daha küçük penalty
+        
+        # 4. Done penalty: normalize et
+        done_penalty = -2.0 if done and info['success'] == 0 else 0.0  # 20 yerine 2
+        
+        # 5. Collision penalty ekle
+        collision_penalty = -0.5 * info['collisions']['count'] if 'collisions' in info else 0.0
+        
+        reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty
+        
+        # Reward'u -5 ile 15 arasında clamp et
+        reward = torch.clamp(torch.tensor(reward), -5.0, 15.0).item()
+        
         return reward
 
     def action_selector(self,obs):
@@ -114,7 +126,17 @@ class Agent():
 
     def critic_loss(self,returns, states_tensor):
         values_pred = self.critic(states_tensor).squeeze()
-        cl = F.mse_loss(values_pred, returns)
+        
+        # Huber loss kullan (MSE yerine) - daha robust
+        cl = F.smooth_l1_loss(values_pred, returns)
+        
+        # Value clipping ekle - critic'in çok büyük değerler üretmesini engelle
+        values_clipped = torch.clamp(values_pred, -10.0, 20.0)
+        cl_clipped = F.smooth_l1_loss(values_clipped, returns)
+        
+        # İkisini birleştir
+        cl = 0.5 * cl + 0.5 * cl_clipped
+        
         return cl
     
     def actor_loss(self,states_tensor,actions_tensor,old_log_probs_tensor,advs):
@@ -145,7 +167,7 @@ class Agent():
         # Critic'i ayrı optimize et
         self.critic_optimizer.zero_grad()
         cl.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)  # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)  # Critic için daha yüksek gradient clipping
         self.critic_optimizer.step()
 
         return al.item(), cl.item(), (al + cl).item()

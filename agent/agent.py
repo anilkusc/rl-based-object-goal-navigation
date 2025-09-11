@@ -78,9 +78,9 @@ class Agent():
         policy_action, policy_log_prob = self.actor.act(state)
 
         if random.random() < self.epsilon:
-            # Random action oluştur
+            # Random action oluştur - batch dimension ekle
             random_action = [random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)]
-            action = torch.tensor(random_action, dtype=torch.float32).to(self.device)
+            action = torch.tensor(random_action, dtype=torch.float32).unsqueeze(0).to(self.device)  # [2] -> [1, 2]
             
             # Random action için log probability hesapla
             # Actor'ın mevcut policy'si altında bu random action'ın log prob'ını hesapla

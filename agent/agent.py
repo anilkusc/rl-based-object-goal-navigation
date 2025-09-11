@@ -55,13 +55,13 @@ class Agent():
         
         # Improved reward calculation
         # 1. Distance reward: larger penalty for being far from goal
-        dist_reward = -info['distance_to_goal'] * 0.1  # Larger penalty (was -info['distance_to_goal'] / 10.0)
+        dist_reward = -info['distance_to_goal'] * 0.001  # Larger penalty (was -info['distance_to_goal'] / 10.0)
         
         # 2. Success reward: much larger reward for success
         success_reward = 50.0 if info['success'] > 0 else 0.0  # Much larger success reward (was 10.0)
         
         # 3. Step penalty: larger penalty for taking too many steps
-        step_penalty = -0.05 * info['num_steps']  # Larger step penalty (was -0.01)
+        step_penalty = -0.001 * info['num_steps']  # Larger step penalty (was -0.01)
         
         # 4. Done penalty: larger penalty for failing
         done_penalty = -5.0 if done and info['success'] == 0 else 0.0  # Larger done penalty (was -2.0)
@@ -71,9 +71,6 @@ class Agent():
         
         reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty
         
-        # Reward'u -20 ile 60 arasında clamp et (wider range for larger rewards)
-        reward = torch.clamp(torch.tensor(reward), -20.0, 60.0).item()
-        
         return reward
 
     def action_selector(self,obs):
@@ -81,19 +78,18 @@ class Agent():
         policy_action, policy_log_prob = self.actor.act(state)
 
         if random.random() < self.epsilon:
-            # Noise ekle
-            linear_noise = torch.randn(1) * self.exploration_noise_std
-            angular_noise = torch.randn(1) * self.exploration_noise_std
-            noise = torch.tensor([linear_noise, angular_noise], dtype=torch.float32).to(self.device)
-            action = policy_action + noise
-            action = torch.clamp(action, -1.0, 1.0)
-
-            # Noisy action için yeni log prob hesapla
-            mu, std = self.actor.forward(state)
+            # Random action oluştur
+            random_action = [random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)]
+            action = torch.tensor(random_action, dtype=torch.float32).to(self.device)
+            
+            # Random action için log probability hesapla
+            # Actor'ın mevcut policy'si altında bu random action'ın log prob'ını hesapla
+            mu, std = self.actor(state)
             dist = D.Normal(mu, std)
             log_prob = dist.log_prob(action).sum(-1)
         else:
             action = policy_action
+            action = torch.clamp(action, -1.0, 1.0)
             log_prob = policy_log_prob
 
         return action, log_prob

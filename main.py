@@ -27,8 +27,8 @@ if __name__ == "__main__":
         for i in range(torch.cuda.device_count()):
             print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
-    max_episode_steps = 3
-    epoch = 100
+    max_episode_steps = 20000
+    epoch = 1000
     config = init_config(max_episode_steps=max_episode_steps,split="val_mini")
     
     print("Initializing environment...")
@@ -71,9 +71,7 @@ if __name__ == "__main__":
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
                 # Scale the actions to reasonable velocities
-                linear_vel = action_np[0] * 0.5  # -0.5 to 0.5 m/s (was -1 to 1)
-                angular_vel = action_np[1] * 1.0  # -1.0 to 1.0 rad/s (was -1 to 1)
-                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": linear_vel,"angular_velocity": angular_vel}})
+                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
                 info = env.get_metrics()
                 info["success"] = 1 if info["distance_to_goal"] < 0.2 else 0
                 done = True if info["distance_to_goal"] < 0.2 else False

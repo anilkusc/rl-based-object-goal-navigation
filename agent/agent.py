@@ -9,7 +9,7 @@ import random
 from torch.utils.tensorboard import SummaryWriter
 
 class Agent():
-    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=1e-4,lr_critic=1e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=0.9,epsilon_min=0.1,epsilon_decay=0.999):
+    def __init__(self,goal_category,state_dim,action_dim,gamma=0.99,lam=0.95,lr_actor=1e-4,lr_critic=1e-4,eps_clip = 0.2,lr_encoder=1e-4,epsilon=0.9,epsilon_min=0.1,epsilon_decay=0.995):
         self.goal_category = goal_category
         
         # Exploration parameters
@@ -58,19 +58,19 @@ class Agent():
         dist_reward = -info['distance_to_goal'] * 0.001  # Larger penalty (was -info['distance_to_goal'] / 10.0)
         
         # 2. Success reward: much larger reward for success
-        success_reward = 50.0 if info['success'] > 0 else 0.0  # Much larger success reward (was 10.0)
-        
-        # 3. Step penalty: larger penalty for taking too many steps
-        step_penalty = -0.001 * info['num_steps']  # Larger step penalty (was -0.01)
-        
-        # 4. Done penalty: larger penalty for failing
-        done_penalty = -5.0 if done and info['success'] == 0 else 0.0  # Larger done penalty (was -2.0)
-        
-        # 5. Collision penalty: larger penalty for collisions
-        collision_penalty = -1.0 * info['collisions']['count'] if 'collisions' in info else 0.0  # Larger collision penalty (was -0.5)
-        
-        reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty
-        
+        #success_reward = 50.0 if info['success'] > 0 else 0.0  # Much larger success reward (was 10.0)
+        #
+        ## 3. Step penalty: larger penalty for taking too many steps
+        #step_penalty = -0.001 * info['num_steps']  # Larger step penalty (was -0.01)
+        #
+        ## 4. Done penalty: larger penalty for failing
+        #done_penalty = -5.0 if done and info['success'] == 0 else 0.0  # Larger done penalty (was -2.0)
+        #
+        ## 5. Collision penalty: larger penalty for collisions
+        #collision_penalty = -1.0 * info['collisions']['count'] if 'collisions' in info else 0.0  # Larger collision penalty (was -0.5)
+        #
+        #reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty
+        reward = dist_reward
         return reward
 
     def action_selector(self,obs):

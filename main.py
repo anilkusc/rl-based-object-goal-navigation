@@ -96,6 +96,7 @@ if __name__ == "__main__":
                     log_probs, values, rewards, states, actions = [], [], [], [], []
                     torch.cuda.empty_cache()
                     print(info)
+                    print(action)
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
             if len(values) > 0:

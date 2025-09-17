@@ -90,17 +90,10 @@ class Agent():
         state = self.process_state(obs)
         policy_action = self.actor.act(state)
 
-        # Improved exploration strategy
+        # Simple exploration strategy
         if random.random() < self.epsilon:
-            # Scale down exploration noise to avoid boundary saturation
-            noise_scale = 0.1  # Much smaller noise
-            noise = torch.randn_like(policy_action) * noise_scale
-            
-            # Add noise before tanh to avoid boundary bias
-            # Get the pre-tanh values by inverting tanh
-            pre_tanh_action = torch.atanh(torch.clamp(policy_action, -0.99, 0.99))
-            noisy_pre_tanh = pre_tanh_action + noise
-            action = torch.tanh(noisy_pre_tanh)
+            # Generate completely random actions for testing
+            action = torch.rand(2, device=self.device) * 2 - 1  # Random between -1 and 1
         else:
             action = policy_action
 

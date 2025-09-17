@@ -25,10 +25,13 @@ class Actor(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        for module in [self.fc1, self.fc2, self.fc3, self.mu]:
+        for module in [self.fc1, self.fc2, self.fc3]:
             if isinstance(module, nn.Linear):
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.constant_(module.bias, 0)
+        # Initialize final layer with smaller weights to prevent extreme outputs
+        nn.init.xavier_uniform_(self.mu.weight, gain=0.1)
+        nn.init.constant_(self.mu.bias, 0)
 
     def forward(self, x):
         x = F.tanh(self.ln1(self.fc1(x)))

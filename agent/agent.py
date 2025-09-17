@@ -16,7 +16,7 @@ class Agent():
         self.epsilon = epsilon  # Initial exploration rate
         self.epsilon_min = epsilon_min  # Minimum exploration rate
         self.epsilon_decay = epsilon_decay  # Exploration decay rate
-        self.exploration_noise_std = 0.3  # Standard deviation for exploration noise
+        self.exploration_noise_std = 0.1  # Reduced standard deviation for exploration noise
         
         # Initialize previous distance for progress tracking
         self.prev_distance = None
@@ -90,12 +90,17 @@ class Agent():
         state = self.process_state(obs)
         policy_action = self.actor.act(state)
 
-        # Add exploration noise instead of random actions for continuous control
+        # Improved exploration strategy
         if random.random() < self.epsilon:
-            # Add Gaussian noise to policy action for exploration
-            noise = torch.randn_like(policy_action) * self.exploration_noise_std
-            action = policy_action + noise
-            action = torch.clamp(action, -1.0, 1.0)
+            # Scale down exploration noise to avoid boundary saturation
+            noise_scale = 0.1  # Much smaller noise
+            noise = torch.randn_like(policy_action) * noise_scale
+            
+            # Add noise before tanh to avoid boundary bias
+            # Get the pre-tanh values by inverting tanh
+            pre_tanh_action = torch.atanh(torch.clamp(policy_action, -0.99, 0.99))
+            noisy_pre_tanh = pre_tanh_action + noise
+            action = torch.tanh(noisy_pre_tanh)
         else:
             action = policy_action
 
@@ -154,11 +159,18 @@ class Agent():
     def actor_loss_deterministic(self, states_tensor, actions_tensor, advs):
         """Deterministik policy için actor loss"""
         predicted_actions = self.actor(states_tensor)
-        # Advantage-weighted MSE loss
+        
+        # MSE loss between predicted and taken actions
         mse_loss = F.mse_loss(predicted_actions, actions_tensor, reduction='none')
-        # Advantage ile ağırlıklandır
+        
+        # Advantage-weighted loss - positive advantages should encourage similar actions
+        # Negative advantages should discourage similar actions
         weighted_loss = mse_loss * advs.unsqueeze(-1)
-        return weighted_loss.mean()
+        
+        # Add action regularization to prevent extreme values
+        action_penalty = torch.mean(torch.abs(predicted_actions)) * 0.01
+        
+        return weighted_loss.mean() + action_penalty
 
     def optimize_models(self,rewards,values,states,actions):
         returns, advs, states_tensor, actions_tensor = self.calculate_advantage_returns(rewards,values,states,actions)
@@ -172,7 +184,7 @@ class Agent():
         # Actor'ı ayrı optimize et
         self.actor_optimizer.zero_grad()
         al.backward(retain_graph=True)
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.1)  # More conservative clipping
         self.actor_optimizer.step()
 
         # Critic'i ayrı optimize et

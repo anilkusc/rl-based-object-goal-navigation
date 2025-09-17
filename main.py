@@ -97,6 +97,8 @@ if __name__ == "__main__":
                     print(action_np)
                     print(log_prob)
                     print(value)
+                    print(obs["compass"])
+                    print(obs["gps"])
                     print("#######################################################")
                     actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
                     log_probs, values, rewards, states, actions = [], [], [], [], []

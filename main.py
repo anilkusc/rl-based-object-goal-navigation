@@ -50,7 +50,7 @@ if __name__ == "__main__":
     objectgoal: 1
     total = 1028
     """
-    agent = Agent(goal_category=None,state_dim=516,action_dim=2)
+    agent = Agent(goal_category=None,state_dim=516,action_dim=2,lr_actor=3e-4,lr_critic=3e-4,epsilon=0.5,epsilon_min=0.05,epsilon_decay=0.999)
     for e in range(epoch):
         for i, episode in enumerate(env.episodes):
             obs = env.reset()
@@ -65,13 +65,16 @@ if __name__ == "__main__":
             done = False
             step = 0
             agent.goal_category=obs['objectgoal']
+            agent.reset_episode()  # Reset episode-specific state
             while not done and step < max_episode_steps:
                 # Select action (currently random)
                 action, log_prob = agent.action_selector(obs)
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
-                # Scale the actions to reasonable velocities
-                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
+                # Scale the actions to reasonable velocities (linear: 0-1, angular: -1 to 1)
+                linear_velocity = max(0, action_np[0])  # Only forward movement, no backward
+                angular_velocity = action_np[1]  # Full range for turning
+                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": linear_velocity,"angular_velocity": angular_velocity}})
                 info = env.get_metrics()
                 info["success"] = 1 if info["distance_to_goal"] < 0.2 else 0
                 done = True if info["distance_to_goal"] < 0.2 else False

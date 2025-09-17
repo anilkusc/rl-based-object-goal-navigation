@@ -16,7 +16,10 @@ class Agent():
         self.epsilon = epsilon  # Initial exploration rate
         self.epsilon_min = epsilon_min  # Minimum exploration rate
         self.epsilon_decay = epsilon_decay  # Exploration decay rate
-        self.exploration_noise_std = 0.5  # Standard deviation for exploration noise (increased from 0.3)
+        self.exploration_noise_std = 0.3  # Standard deviation for exploration noise
+        
+        # Initialize previous distance for progress tracking
+        self.prev_distance = None
         
         # GPU kontrolü ve cihaz seçimi
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,41 +52,52 @@ class Agent():
         """Decay exploration rate over time"""
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+    
+    def reset_episode(self):
+        """Reset episode-specific state"""
+        self.prev_distance = None
 
     def calculate_reward(self,info,done):
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
         
         # Improved reward calculation
-        # 1. Distance reward: larger penalty for being far from goal
-        dist_reward = -info['distance_to_goal'] * 0.001  # Larger penalty (was -info['distance_to_goal'] / 10.0)
+        # 1. Distance reward: stronger penalty for being far from goal
+        dist_reward = -info['distance_to_goal'] * 0.1  # Much stronger penalty
         
-        # 2. Success reward: much larger reward for success
-        #success_reward = 50.0 if info['success'] > 0 else 0.0  # Much larger success reward (was 10.0)
-        #
-        ## 3. Step penalty: larger penalty for taking too many steps
-        #step_penalty = -0.001 * info['num_steps']  # Larger step penalty (was -0.01)
-        #
-        ## 4. Done penalty: larger penalty for failing
-        #done_penalty = -5.0 if done and info['success'] == 0 else 0.0  # Larger done penalty (was -2.0)
-        #
-        ## 5. Collision penalty: larger penalty for collisions
-        #collision_penalty = -1.0 * info['collisions']['count'] if 'collisions' in info else 0.0  # Larger collision penalty (was -0.5)
-        #
-        #reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty
-        reward = dist_reward
+        # 2. Success reward: large reward for success
+        success_reward = 100.0 if info['success'] > 0 else 0.0
+        
+        # 3. Step penalty: penalty for taking too many steps
+        step_penalty = -0.01 * info['num_steps']  # Small step penalty
+        
+        # 4. Done penalty: penalty for failing to reach goal
+        done_penalty = -10.0 if done and info['success'] == 0 else 0.0
+        
+        # 5. Collision penalty: penalty for collisions
+        collision_penalty = -2.0 * info['collisions']['count'] if 'collisions' in info else 0.0
+        
+        # 6. Progress reward: reward for getting closer to goal
+        progress_reward = 0.0
+        if hasattr(self, 'prev_distance'):
+            progress = self.prev_distance - info['distance_to_goal']
+            progress_reward = progress * 5.0  # Reward for getting closer
+        self.prev_distance = info['distance_to_goal']
+        
+        reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty + progress_reward
         return reward
 
     def action_selector(self,obs):
         state = self.process_state(obs)
         policy_action, policy_log_prob = self.actor.act(state)
 
+        # Add exploration noise instead of random actions for continuous control
         if random.random() < self.epsilon:
-            # Random action oluştur - batch dimension ekle
-            random_action = [random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0)]
-            action = torch.tensor(random_action, dtype=torch.float32).unsqueeze(0).to(self.device)  # [2] -> [1, 2]
+            # Add Gaussian noise to policy action for exploration
+            noise = torch.randn_like(policy_action) * self.exploration_noise_std
+            action = policy_action + noise
+            action = torch.clamp(action, -1.0, 1.0)
             
-            # Random action için log probability hesapla
-            # Actor'ın mevcut policy'si altında bu random action'ın log prob'ını hesapla
+            # Calculate log probability for noisy action
             mu, std = self.actor(state)
             dist = D.Normal(mu, std)
             log_prob = dist.log_prob(action).sum(-1)

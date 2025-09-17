@@ -71,9 +71,7 @@ if __name__ == "__main__":
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
                 # Scale the actions to reasonable velocities
-                linear_vel = action_np[0] * 0.2  # -0.2 to 0.2 m/s (slow, controlled movement)
-                angular_vel = action_np[1] * 0.3  # -0.3 to 0.3 rad/s (slow, controlled turning)
-                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": linear_vel,"angular_velocity": angular_vel}})
+                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
                 info = env.get_metrics()
                 info["success"] = 1 if info["distance_to_goal"] < 0.2 else 0
                 done = True if info["distance_to_goal"] < 0.2 else False
@@ -94,11 +92,16 @@ if __name__ == "__main__":
                 #    pass
                 step += 1
                 if step % 500 == 0:
+                    print("#######################################################")
+                    print(info)
+                    print(action_np)
+                    print(log_prob)
+                    print(value)
+                    print("#######################################################")
                     actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
                     log_probs, values, rewards, states, actions = [], [], [], [], []
                     torch.cuda.empty_cache()
-                    print(info)
-                    print(action)
+
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
             if len(values) > 0:

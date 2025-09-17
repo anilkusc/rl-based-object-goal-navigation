@@ -88,7 +88,7 @@ class Agent():
 
     def action_selector(self,obs):
         state = self.process_state(obs)
-        policy_action, policy_log_prob = self.actor.act(state)
+        policy_action = self.actor.act(state)
 
         # Add exploration noise instead of random actions for continuous control
         if random.random() < self.epsilon:
@@ -96,17 +96,10 @@ class Agent():
             noise = torch.randn_like(policy_action) * self.exploration_noise_std
             action = policy_action + noise
             action = torch.clamp(action, -1.0, 1.0)
-            
-            # Calculate log probability for noisy action
-            mu, std = self.actor(state)
-            dist = D.Normal(mu, std)
-            log_prob = dist.log_prob(action).sum(-1)
         else:
             action = policy_action
-            action = torch.clamp(action, -1.0, 1.0)
-            log_prob = policy_log_prob
 
-        return action, log_prob
+        return action
 
     def critic_selector(self,obs):
         state = self.process_state(obs)

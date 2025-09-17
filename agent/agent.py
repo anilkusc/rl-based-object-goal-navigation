@@ -92,8 +92,8 @@ class Agent():
 
         # Simple exploration strategy
         if random.random() < self.epsilon:
-            # Generate completely random actions for testing
-            action = torch.rand(2, device=self.device) * 2 - 1  # Random between -1 and 1
+            # Generate completely random actions for testing with same shape as policy_action
+            action = torch.rand_like(policy_action) * 2 - 1  # Random between -1 and 1
         else:
             action = policy_action
 

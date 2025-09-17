@@ -71,7 +71,9 @@ if __name__ == "__main__":
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
                 # Scale the actions to reasonable velocities
-                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": action_np[0],"angular_velocity": action_np[1]}})
+                linear_vel = action_np[0] * 0.2  # -0.2 to 0.2 m/s (slow, controlled movement)
+                angular_vel = action_np[1] * 0.3  # -0.3 to 0.3 rad/s (slow, controlled turning)
+                next_obs = env.step(action = {"action": "velocity_control","action_args": {"linear_velocity": linear_vel,"angular_velocity": angular_vel}})
                 info = env.get_metrics()
                 info["success"] = 1 if info["distance_to_goal"] < 0.2 else 0
                 done = True if info["distance_to_goal"] < 0.2 else False

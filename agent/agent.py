@@ -78,7 +78,7 @@ class Agent():
         
         # 6. Progress reward: reward for getting closer to goal
         progress_reward = 0.0
-        if hasattr(self, 'prev_distance'):
+        if self.prev_distance is not None:
             progress = self.prev_distance - info['distance_to_goal']
             progress_reward = progress * 5.0  # Reward for getting closer
         self.prev_distance = info['distance_to_goal']

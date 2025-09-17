@@ -57,7 +57,7 @@ if __name__ == "__main__":
             ep = env.current_episode
             if not (ep.scene_id == "data/scene_datasets/hm3d_v0.2/hm3d_v0.2/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb" and ep.episode_id == "2"):
                 continue
-            log_probs, values, rewards, states, actions = [], [], [], [], []
+            values, rewards, states, actions = [], [], [], []
             print(f"\nStarting Episode {episode.episode_id}")
             # Print episode information from config
             print_episode_info(env)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
             agent.reset_episode()  # Reset episode-specific state
             while not done and step < max_episode_steps:
                 # Select action (currently random)
-                action, log_prob = agent.action_selector(obs)
+                action = agent.action_selector(obs)
                 value = agent.critic_selector(obs)
                 action_np = action.squeeze().detach().cpu().numpy()
                 # Scale the actions to reasonable velocities (linear: 0-1, angular: -1 to 1)
@@ -82,7 +82,6 @@ if __name__ == "__main__":
                 reward = agent.calculate_reward(info,done)
                 states.append(agent.process_state(obs))
                 actions.append(action)  # action zaten GPU'da
-                log_probs.append(log_prob)  # log_prob zaten GPU'da
                 values.append(value.item())
                 rewards.append(reward)
                 obs = next_obs
@@ -98,19 +97,18 @@ if __name__ == "__main__":
                     print("#######################################################")
                     print(info)
                     print(action_np)
-                    print(log_prob)
                     print(value)
                     print(obs["compass"])
                     print(obs["gps"])
                     print("#######################################################")
-                    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
-                    log_probs, values, rewards, states, actions = [], [], [], [], []
+                    actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions)
+                    values, rewards, states, actions = [], [], [], []
                     torch.cuda.empty_cache()
 
                 #print(f"Step: {step}, Action: {action},Log prob: {log_prob},Value: {value},Reward: {reward}")
             # Get losses from optimization and log to TensorBoard
             if len(values) > 0:
-                actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions, log_probs)
+                actor_loss, critic_loss, total_loss = agent.optimize_models(rewards, values, states, actions)
             
             metrics = env.get_metrics()
             agent.log_to_tensorboard(episode_reward, actor_loss, critic_loss, total_loss, step, rewards, metrics)

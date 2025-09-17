@@ -157,26 +157,35 @@ class Agent():
         obj2 = torch.clamp(ratio, 1-self.eps_clip, 1+self.eps_clip) * advs
         al = -torch.min(obj1, obj2).mean()
         return al
+    
+    def actor_loss_deterministic(self, states_tensor, actions_tensor, advs):
+        """Deterministik policy için actor loss"""
+        predicted_actions = self.actor(states_tensor)
+        # Advantage-weighted MSE loss
+        mse_loss = F.mse_loss(predicted_actions, actions_tensor, reduction='none')
+        # Advantage ile ağırlıklandır
+        weighted_loss = mse_loss * advs.unsqueeze(-1)
+        return weighted_loss.mean()
 
-    def optimize_models(self,rewards,values,states,actions,log_probs):
-        returns, advs, states_tensor, actions_tensor, old_log_probs_tensor = self.calculate_advantage_returns(rewards,values,states,actions,log_probs)
+    def optimize_models(self,rewards,values,states,actions):
+        returns, advs, states_tensor, actions_tensor = self.calculate_advantage_returns(rewards,values,states,actions)
 
-        # Actor loss hesapla
-        al = self.actor_loss(states_tensor,actions_tensor,old_log_probs_tensor,advs)
+        # Actor loss hesapla (deterministik için basit MSE loss)
+        al = self.actor_loss_deterministic(states_tensor, actions_tensor, advs)
 
         # Critic loss hesapla
         cl = self.critic_loss(returns, states_tensor)
 
         # Actor'ı ayrı optimize et
         self.actor_optimizer.zero_grad()
-        al.backward(retain_graph=True)  # retain_graph=True çünkü aynı tensor'ları kullanıyoruz
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)  # Gradient clipping
+        al.backward(retain_graph=True)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         self.actor_optimizer.step()
 
         # Critic'i ayrı optimize et
         self.critic_optimizer.zero_grad()
         cl.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)  # Critic için daha yüksek gradient clipping
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
         self.critic_optimizer.step()
 
         return al.item(), cl.item(), (al + cl).item()
@@ -269,15 +278,14 @@ class Agent():
         print(f"TensorBoard logs saved to: {self.log_dir}")
         print("To view TensorBoard, run: tensorboard --logdir=outputs/tensorboard_logs")
 
-    def calculate_advantage_returns(self,rewards,values,states,actions,log_probs):
+    def calculate_advantage_returns(self,rewards,values,states,actions):
         returns, advs = self.compute_returns_advantages(rewards, values)
         returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
         advs = torch.tensor(advs, dtype=torch.float32).to(self.device)
 
         states_tensor = torch.stack(states)
         actions_tensor = torch.stack(actions)
-        old_log_probs_tensor = torch.stack(log_probs)
-        return returns, advs, states_tensor, actions_tensor, old_log_probs_tensor
+        return returns, advs, states_tensor, actions_tensor
 
     def process_state(self,obs):
         # RGB frame - ResNet expects 3 channels, so we keep the original RGB

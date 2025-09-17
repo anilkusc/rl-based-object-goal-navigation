@@ -12,7 +12,6 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.mu = nn.Linear(64, action_dim)
-        self.log_std = nn.Parameter(torch.zeros(action_dim))
         
         # Layer normalization instead of batch normalization
         self.ln1 = nn.LayerNorm(256)
@@ -32,25 +31,17 @@ class Actor(nn.Module):
                 nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
-        x = F.leaky_relu(self.ln1(self.fc1(x)))
+        x = F.tanh(self.ln1(self.fc1(x)))
         x = self.dropout(x)
-        x = F.leaky_relu(self.ln2(self.fc2(x)))
+        x = F.tanh(self.ln2(self.fc2(x)))
         x = self.dropout(x)
-        x = F.leaky_relu(self.ln3(self.fc3(x)))
-        mu = torch.tanh(self.mu(x))
-        std = torch.exp(self.log_std)
-        return mu, std
+        x = F.tanh(self.ln3(self.fc3(x)))
+        action = torch.tanh(self.mu(x))  # Direkt action çıktısı
+        return action
 
     def act(self, state):
-        mu, std = self.forward(state)
-        dist = distributions.Normal(mu, std)
-        action = dist.sample()
-        action_clipped = torch.clamp(action, -1.0, 1.0)
-        
-        # Clipped action için log prob hesapla
-        log_prob = dist.log_prob(action_clipped).sum(-1)
-        
-        return action_clipped.detach(), log_prob.detach()
+        action = self.forward(state)
+        return action.detach()
 
 # === Critic (Value) Network ===
 class Critic(nn.Module):

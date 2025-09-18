@@ -89,11 +89,14 @@ class Agent():
     def action_selector(self,obs):
         state = self.process_state(obs)
         policy_action = self.actor.act(state)
-
-        # Simple exploration strategy
+        # Improved exploration strategy
         if random.random() < self.epsilon:
-            # Generate completely random actions for testing with same shape as policy_action
-            action = torch.rand_like(policy_action) * 2 - 1  # Random between -1 and 1
+            # Generate more meaningful random actions for navigation
+            # Linear: mostly forward movement (0.2 to 1.0), occasionally stop (0.0)
+            # Angular: random turning (-1.0 to 1.0)
+            linear_action = random.choice([0.0,0.2, 0.4, 0.6, 0.8, 1.0])  # Discrete forward speeds
+            angular_action = random.choice([-1.0,-0.8,-0.6,-0.4,-0.2,0.0,0.2, 0.4, 0.6, 0.8, 1.0])  # Random turning
+            action = torch.tensor([[linear_action, angular_action]], device=self.device)
         else:
             action = policy_action
 

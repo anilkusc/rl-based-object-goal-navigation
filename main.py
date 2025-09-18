@@ -50,7 +50,7 @@ if __name__ == "__main__":
     objectgoal: 1
     total = 1028
     """
-    agent = Agent(goal_category=None,state_dim=516,action_dim=2,lr_actor=3e-4,lr_critic=3e-4,epsilon=0.5,epsilon_min=0.05,epsilon_decay=0.999)
+    agent = Agent(goal_category=None,state_dim=516,action_dim=2,lr_actor=3e-4,lr_critic=3e-4,epsilon=0.8,epsilon_min=0.1,epsilon_decay=0.995)
     for e in range(epoch):
         for i, episode in enumerate(env.episodes):
             obs = env.reset()

@@ -29,9 +29,10 @@ class Actor(nn.Module):
             if isinstance(module, nn.Linear):
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.constant_(module.bias, 0)
-        # Initialize final layer with smaller weights to prevent extreme outputs
-        nn.init.xavier_uniform_(self.mu.weight, gain=0.1)
-        nn.init.constant_(self.mu.bias, 0)
+        # Initialize final layer with moderate weights for better action range
+        nn.init.xavier_uniform_(self.mu.weight, gain=0.5)  # Increased gain for more action range
+        # Initialize bias to encourage forward movement initially
+        nn.init.constant_(self.mu.bias, 0.3)  # Slight forward bias
 
     def forward(self, x):
         x = F.tanh(self.ln1(self.fc1(x)))

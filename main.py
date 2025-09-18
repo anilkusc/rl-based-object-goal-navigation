@@ -91,7 +91,7 @@ if __name__ == "__main__":
                     #save_depth_observation_to_png(obs["depth"],output_path="outputs/episode_"+str(episode.episode_id),filename=str(step)+"_depth.png")
                 #    pass
                 step += 1
-                if step % 500 == 0:
+                if step % 1000 == 0:
                     print("#######################################################")
                     print(info)
                     print(action_np)

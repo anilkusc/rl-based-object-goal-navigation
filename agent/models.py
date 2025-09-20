@@ -20,7 +20,6 @@ class Actor(nn.Module):
         self.ln3 = nn.LayerNorm(128)
         self.ln4 = nn.LayerNorm(64)
         self.ln5 = nn.LayerNorm(action_dim)
-        self.ln4 = nn.LayerNorm(action_dim)
         
         # Dropout ekle
         self.dropout = nn.Dropout(0.1)

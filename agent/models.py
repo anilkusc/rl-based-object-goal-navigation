@@ -8,31 +8,23 @@ import torchvision.models as models
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.mu = nn.Linear(64, action_dim)
+        self.fc1 = nn.Linear(state_dim, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, 64)
+        self.fc5 = nn.Linear(64, action_dim)
         
         # Layer normalization instead of batch normalization
-        self.ln1 = nn.LayerNorm(256)
-        self.ln2 = nn.LayerNorm(128)
-        self.ln3 = nn.LayerNorm(64)
+        self.ln1 = nn.LayerNorm(512)
+        self.ln2 = nn.LayerNorm(256)
+        self.ln3 = nn.LayerNorm(128)
+        self.ln4 = nn.LayerNorm(64)
+        self.ln5 = nn.LayerNorm(action_dim)
+        self.ln4 = nn.LayerNorm(action_dim)
         
         # Dropout ekle
         self.dropout = nn.Dropout(0.1)
         
-        # Weight initialization
-        self._init_weights()
-
-    def _init_weights(self):
-        for module in [self.fc1, self.fc2, self.fc3]:
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
-                nn.init.constant_(module.bias, 0)
-        # Initialize final layer with moderate weights for better action range
-        nn.init.xavier_uniform_(self.mu.weight, gain=0.5)  # Increased gain for more action range
-        # Initialize bias to encourage forward movement initially
-        nn.init.constant_(self.mu.bias, 0.3)  # Slight forward bias
 
     def forward(self, x):
         x = F.tanh(self.ln1(self.fc1(x)))
@@ -40,7 +32,10 @@ class Actor(nn.Module):
         x = F.tanh(self.ln2(self.fc2(x)))
         x = self.dropout(x)
         x = F.tanh(self.ln3(self.fc3(x)))
-        action = torch.tanh(self.mu(x))  # Direkt action çıktısı
+        x = self.dropout(x)
+        x = F.tanh(self.ln4(self.fc4(x)))
+        x = self.dropout(x)
+        action = torch.tanh(self.ln5(self.fc5(x)))  # Direkt action çıktısı
         return action
 
     def act(self, state):
@@ -65,18 +60,6 @@ class Critic(nn.Module):
         
         # Dropout
         self.dropout = nn.Dropout(0.15)
-        
-        # Weight initialization
-        self._init_weights()
-
-    def _init_weights(self):
-        for module in [self.fc1, self.fc2, self.fc3, self.fc4]:
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
-                nn.init.constant_(module.bias, 0)
-        # Output layer için farklı initialization
-        nn.init.xavier_uniform_(self.out.weight, gain=0.1)  # Küçük gain
-        nn.init.constant_(self.out.bias, 0)
 
     def forward(self, x):
         x = F.leaky_relu(self.ln1(self.fc1(x)))

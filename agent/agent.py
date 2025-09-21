@@ -61,29 +61,26 @@ class Agent():
         #Info: {'distance_to_goal': 2.3431520462036133, 'success': 0.0, 'spl': 0.0, 'soft_spl': 0.05283481905361087, 'num_steps': 15, 'collisions': {'count': 0, 'is_collision': False}, 'distance_to_goal_reward': 0.011035680770874023}
         
         # Improved reward calculation
-        # 1. Distance reward: stronger penalty for being far from goal
-        dist_reward = -info['distance_to_goal'] * 0.1  # Much stronger penalty
-        
-        # 2. Success reward: large reward for success
+        # 1. Success reward: large reward for success
         success_reward = 100.0 if info['success'] > 0 else 0.0
         
-        # 3. Step penalty: penalty for taking too many steps
-        step_penalty = -0.01 * info['num_steps']  # Small step penalty
-        
-        # 4. Done penalty: penalty for failing to reach goal
-        done_penalty = -10.0 if done and info['success'] == 0 else 0.0
-        
-        # 5. Collision penalty: penalty for collisions
-        collision_penalty = -2.0 * info['collisions']['count'] if 'collisions' in info else 0.0
-        
-        # 6. Progress reward: reward for getting closer to goal
+        # 2. Progress reward: reward for getting closer to goal
         progress_reward = 0.0
         if self.prev_distance is not None:
             progress = self.prev_distance - info['distance_to_goal']
             progress_reward = progress * 5.0  # Reward for getting closer
         self.prev_distance = info['distance_to_goal']
         
-        reward = dist_reward + success_reward + step_penalty + done_penalty + collision_penalty + progress_reward
+        # 3. Small step penalty: minimal penalty to encourage efficiency
+        step_penalty = -0.001  # Very small penalty per step
+        
+        # 4. Done penalty: penalty for failing to reach goal
+        done_penalty = -5.0 if done and info['success'] == 0 else 0.0
+        
+        # 5. Collision penalty: penalty for collisions
+        collision_penalty = -1.0 * info['collisions']['count'] if 'collisions' in info else 0.0
+        
+        reward = success_reward + progress_reward + step_penalty + done_penalty + collision_penalty
         return reward
 
     def action_selector(self,obs):
